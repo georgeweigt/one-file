@@ -1,6 +1,8 @@
-/* This is a realization of "Mathematical routines for the NIST prime elliptic curves"
+/* This is a realization of 'Mathematical routines for the NIST prime elliptic curves'
 
-The "main" function runs a self test.
+(The document can be found with Google.)
+
+The 'main' function runs a self test.
 
 To compile and run:
 
