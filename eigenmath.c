@@ -1,4 +1,4 @@
-/* December 3, 2019
+/* December 6, 2019
 
 License: FreeBSD
 
@@ -623,9 +623,6 @@ void factor_bignum(uint32_t *a);
 void eval_factorial(void);
 void factorial(void);
 void factorial_nib(void);
-void simplifyfactorials(void);
-void sfac_product(void);
-void sfac_product_f(struct atom **s, int a, int b);
 void factorpoly(void);
 void factorpoly_nib(void);
 void rationalize_coefficients(int h);
@@ -2888,10 +2885,10 @@ void
 emit_factorial_function(struct atom *p)
 {
 	p = cadr(p);
-	if (car(p) == symbol(ADD) || car(p) == symbol(MULTIPLY) || car(p) == symbol(POWER) || car(p) == symbol(FACTORIAL))
-		emit_subexpr(p);
-	else
+	if (isposint(p) || issymbol(p))
 		emit_expr(p);
+	else
+		emit_subexpr(p);
 	emit_char('!');
 }
 
@@ -8301,145 +8298,8 @@ factorial_nib(void)
 		return;
 	}
 	bignum_factorial(n);
-}
-
-// simplification rules for factorials (m < n)
-//
-//	(e + 1) * factorial(e)	->	factorial(e + 1)
-//
-//	factorial(e) / e	->	factorial(e - 1)
-//
-//	e / factorial(e)	->	1 / factorial(e - 1)
-//
-//	factorial(e + n)
-//	----------------	->	(e + m + 1)(e + m + 2)...(e + n)
-//	factorial(e + m)
-//
-//	factorial(e + m)                               1
-//	----------------	->	--------------------------------
-//	factorial(e + n)		(e + m + 1)(e + m + 2)...(e + n)
-
-void
-simplifyfactorials(void)
-{
-	int x;
-	save();
-	x = expanding;
-	expanding = 0;
-	p1 = pop();
-	if (car(p1) == symbol(ADD)) {
-		push(zero);
-		p1 = cdr(p1);
-		while (iscons(p1)) {
-			push(car(p1));
-			simplifyfactorials();
-			add();
-			p1 = cdr(p1);
-		}
-		expanding = x;
-		restore();
-		return;
-	}
-	if (car(p1) == symbol(MULTIPLY)) {
-		sfac_product();
-		expanding = x;
-		restore();
-		return;
-	}
-	push(p1);
-	expanding = x;
-	restore();
-}
-
-void
-sfac_product(void)
-{
-	int i, j, n;
-	struct atom **s;
-	s = stack + tos;
-	p1 = cdr(p1);
-	n = 0;
-	while (iscons(p1)) {
-		push(car(p1));
-		p1 = cdr(p1);
-		n++;
-	}
-	for (i = 0; i < n - 1; i++) {
-		if (s[i] == symbol(NIL))
-			continue;
-		for (j = i + 1; j < n; j++) {
-			if (s[j] == symbol(NIL))
-				continue;
-			sfac_product_f(s, i, j);
-		}
-	}
-	push(one);
-	for (i = 0; i < n; i++) {
-		if (s[i] == symbol(NIL))
-			continue;
-		push(s[i]);
-		multiply();
-	}
-	p1 = pop();
-	tos -= n;
-	push(p1);
-}
-
-void
-sfac_product_f(struct atom **s, int a, int b)
-{
-	int i, n;
-	p1 = s[a];
-	p2 = s[b];
-	if (ispower(p1)) {
-		p3 = caddr(p1);
-		p1 = cadr(p1);
-	} else
-		p3 = one;
-	if (ispower(p2)) {
-		p4 = caddr(p2);
-		p2 = cadr(p2);
-	} else
-		p4 = one;
-	if (isfactorial(p1) && isfactorial(p2)) {
-		// Determine if the powers cancel.
-		push(p3);
-		push(p4);
-		add();
-		expand_expr();
-		n = pop_integer();
-		if (n != 0)
-			return;
-		// Find the difference between the two factorial args.
-		// For example, the difference between (a + 2)! and a! is 2.
-		push(cadr(p1));
-		push(cadr(p2));
-		subtract();
-		expand_expr(); // to simplify
-		n = pop_integer();
-		if (n == 0 || n == ERR)
-			return;
-		if (n < 0) {
-			n = -n;
-			p5 = p1;
-			p1 = p2;
-			p2 = p5;
-			p5 = p3;
-			p3 = p4;
-			p4 = p5;
-		}
-		push(one);
-		for (i = 1; i <= n; i++) {
-			push(cadr(p2));
-			push_integer(i);
-			add();
-			push(p3);
-			power();
-			multiply();
-		}
-		s[a] = pop();
-		s[b] = symbol(NIL);
-	}
+	if (isdouble(p1))
+		bignum_float();
 }
 
 int expo;
@@ -14807,10 +14667,8 @@ print_term(struct atom *p)
 	if (car(p) == symbol(MULTIPLY)) {
 		p = cdr(p);
 		// coeff -1?
-		if (isminusone(car(p))) {
-//			print_char('-');
+		if (isminusone(car(p)))
 			p = cdr(p);
-		}
 		print_factor(car(p));
 		p = cdr(p);
 		while (iscons(p)) {
@@ -14874,9 +14732,7 @@ print_factor(struct atom *p)
 		return;
 	}
 	if (isstr(p)) {
-		//print_str("\"");
 		print_str(p->u.str);
-		//print_str("\"");
 		return;
 	}
 	if (istensor(p)) {
@@ -14935,21 +14791,6 @@ print_factor(struct atom *p)
 			print_factor(caddr(p));
 		return;
 	}
-//	if (car(p) == _list) {
-//		print_str("{");
-//		p = cdr(p);
-//		if (iscons(p)) {
-//			print_expr(car(p));
-//			p = cdr(p);
-//		}
-//		while (iscons(p)) {
-//			print_str(",");
-//			print_expr(car(p));
-//			p = cdr(p);
-//		}
-//		print_str("}");
-//		return;
-//	}
 	if (car(p) == symbol(INDEX) && issymbol(cadr(p))) {
 		print_index_function(p);
 		return;
@@ -14959,10 +14800,6 @@ print_factor(struct atom *p)
 		return;
 	}
 	if (iscons(p)) {
-		//if (car(p) == symbol(FORMAL) && cadr(p)->k == SYM) {
-		//	print_str(((struct symbol *) cadr(p))->name);
-		//	return;
-		//}
 		print_factor(car(p));
 		p = cdr(p);
 		print_str("(");
@@ -15014,10 +14851,10 @@ void
 print_factorial_function(struct atom *p)
 {
 	p = cadr(p);
-	if (car(p) == symbol(ADD) || car(p) == symbol(MULTIPLY) || car(p) == symbol(POWER) || car(p) == symbol(FACTORIAL))
-		print_subexpr(p);
-	else
+	if (isposint(p) || issymbol(p))
 		print_expr(p);
+	else
+		print_subexpr(p);
 	print_char('!');
 }
 
@@ -15087,17 +14924,11 @@ is_denominator(struct atom *p)
 		return 0;
 }
 
-// don't consider the leading fraction
-
-// we want 2/3*a*b*c instead of 2*a*b*c/3
-
 int
 any_denominators(struct atom *p)
 {
 	struct atom *q;
 	p = cdr(p);
-//	if (isfraction(car(p)))
-//		return 1;
 	while (iscons(p)) {
 		q = car(p);
 		if (is_denominator(q))
