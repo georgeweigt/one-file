@@ -1,4 +1,4 @@
-/* December 22, 2019
+/* December 24, 2019
 
 To build and run:
 
@@ -10444,11 +10444,6 @@ char *itab[] = {
 
 	"f(cos(x)^2*sin(x),-cos(x)^3/3)",
 
-// compton scattering
-
-	"f(sin(x)/(a+b*cos(x)),-log(a+b*cos(x))/b)",
-	"f(sin(x)/(a+b*(cos(x)-1)),log(a+b-b*cos(x))/b)",
-
 	NULL,
 };
 
@@ -18085,82 +18080,6 @@ rewrite_args_tensor(void)
 	}
 	push(p1);
 	return n;
-}
-
-// Scan expr for vars, return in vector
-//
-// Input:		Expression on stack
-//
-// Output:		Vector
-
-int global_h;
-
-void
-variables(void)
-{
-	int i, n;
-	save();
-	p1 = pop();
-	global_h = tos;
-	lscan(p1);
-	n = tos - global_h;
-	if (n > 1)
-		qsort(stack + global_h, n, sizeof (struct atom *), var_cmp);
-	p1 = alloc_tensor(n);
-	p1->u.tensor->ndim = 1;
-	p1->u.tensor->dim[0] = n;
-	for (i = 0; i < n; i++)
-		p1->u.tensor->elem[i] = stack[i];
-	tos = global_h;
-	push(p1);
-	restore();
-}
-
-void
-lscan(struct atom *p)
-{
-	int i;
-	if (iscons(p)) {
-		p = cdr(p);
-		while (iscons(p)) {
-			lscan(car(p));
-			p = cdr(p);
-		}
-	} else if (issymbol(p) && p != symbol(EXP1)) {
-		for (i = global_h; i < tos; i++)
-			if (stack[i] == p)
-				return;
-		push(p);
-	}
-}
-
-int
-var_cmp(const void *p1, const void *p2)
-{
-	return cmp_expr(*((struct atom **) p1), *((struct atom **) p2));
-}
-
-// Encapsulate stack values in a vector
-//
-// Input:	n		Number of values on stack
-//
-//		tos-n		Start of value
-//
-// Output:	Vector on stack
-
-void
-vectorize(int n)
-{
-	int i;
-	save();
-	p1 = alloc_tensor(n);
-	p1->u.tensor->ndim = 1;
-	p1->u.tensor->dim[0] = n;
-	for (i = 0; i < n; i++)
-		p1->u.tensor->elem[i] = stack[tos - n + i];
-	tos -= n;
-	push(p1);
-	restore();
 }
 
 void
