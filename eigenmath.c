@@ -17949,13 +17949,14 @@ rewrite(void)
 void
 rewrite_nib(void)
 {
-	int h, i;
+	int h, i, n;
 	p1 = pop();
 	if (istensor(p1)) {
 		push(p1);
 		copy_tensor();
 		p1 = pop();
-		for (i = 0; i < p1->u.tensor->nelem; i++) {
+		n = p1->u.tensor->nelem;
+		for (i = 0; i < n; i++) {
 			push(p1->u.tensor->elem[i]);
 			rewrite();
 			p1->u.tensor->elem[i] = pop();
