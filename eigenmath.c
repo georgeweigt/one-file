@@ -1,4 +1,4 @@
-/* December 24, 2019
+/* January 21, 2020
 
 To build and run:
 
@@ -18,7 +18,7 @@ A test script is available here:
 
 BSD 2-Clause License
 
-Copyright (c) 2019, George Weigt
+Copyright (c) 2020, George Weigt
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without
@@ -873,8 +873,6 @@ void real(void);
 void eval_rect(void);
 void rect(void);
 void rect_nib(void);
-void rewrite(void);
-void rewrite_tensor(void);
 void eval_roots(void);
 void roots(void);
 void roots2(void);
@@ -1022,10 +1020,6 @@ void transpose_nib(void);
 void eval_user_function(void);
 int rewrite_args(void);
 int rewrite_args_tensor(void);
-void variables(void);
-void lscan(struct atom *p);
-int var_cmp(const void *p1, const void *p2);
-void vectorize(int n);
 void eval_zero(void);
 
 struct atom symtab[NSYM];
@@ -15567,61 +15561,6 @@ rect_nib(void)
 	multiply();
 }
 
-// Rewrite by expanding all symbols
-
-void
-rewrite(void)
-{
-	int h;
-	save();
-	p1 = pop();
-	if (istensor(p1)) {
-		rewrite_tensor();
-		restore();
-		return;
-	}
-	if (iscons(p1)) {
-		h = tos;
-		push(car(p1)); // Do not rewrite function name
-		p1 = cdr(p1);
-		while (iscons(p1)) {
-			push(car(p1));
-			rewrite();
-			p1 = cdr(p1);
-		}
-		list(tos - h);
-		restore();
-		return;
-	}
-	// If not a symbol then done
-	if (!issymbol(p1)) {
-		push(p1);
-		restore();
-		return;
-	}
-	// Get the symbol's binding, try again
-	p2 = get_binding(p1);
-	push(p2);
-	if (p1 != p2)
-		rewrite();
-	restore();
-}
-
-void
-rewrite_tensor(void)
-{
-	int i;
-	push(p1);
-	copy_tensor();
-	p1 = pop();
-	for (i = 0; i < p1->u.tensor->nelem; i++) {
-		push(p1->u.tensor->elem[i]);
-		rewrite();
-		p1->u.tensor->elem[i] = pop();
-	}
-	push(p1);
-}
-
 #undef POLY
 #undef X
 #undef A
@@ -17944,8 +17883,6 @@ transpose_nib(void)
 	push(p2);
 }
 
-// Evaluate a user defined function
-
 #undef F
 #undef A
 #undef B
@@ -17955,9 +17892,6 @@ transpose_nib(void)
 #define A p4 // A is the formal argument list
 #define B p5 // B is the calling argument list
 #define S p6 // S is the argument substitution list
-
-int rewrite_args(void);
-int rewrite_args_tensor(void);
 
 void
 eval_user_function(void)
