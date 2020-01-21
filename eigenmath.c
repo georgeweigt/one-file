@@ -17992,13 +17992,8 @@ rewrite_nib(void)
 	// Get the symbol's binding, try again
 	p2 = get_binding(p1);
 	push(p2);
-	if (p1 == p2)
-		return;
-	rewrite();
-	p3 = pop();
-	if (equal(p2, p3))
-		p3 = p1; // no change, undo get_binding
-	push(p3);
+	if (p1 != p2)
+		rewrite();
 }
 
 void
