@@ -1018,8 +1018,8 @@ void eval_transpose(void);
 void transpose(void);
 void transpose_nib(void);
 void eval_user_function(void);
-int rewrite_args(void);
-int rewrite_args_tensor(void);
+void rewrite(void);
+void rewrite_nib(void);
 void eval_zero(void);
 
 struct atom symtab[NSYM];
@@ -17888,10 +17888,10 @@ transpose_nib(void)
 #undef B
 #undef S
 
-#define F p3 // F is the function body
-#define A p4 // A is the formal argument list
-#define B p5 // B is the calling argument list
-#define S p6 // S is the argument substitution list
+#define F p4 // F is the function body
+#define A p5 // A is the formal argument list
+#define B p6 // B is the calling argument list
+#define S p7 // S is the argument substitution list
 
 void
 eval_user_function(void)
@@ -17933,26 +17933,35 @@ eval_user_function(void)
 	S = pop();
 	// Evaluate the function body
 	push(F);
-	if (iscons(S)) {
-		push(S);
-		rewrite_args();
-	}
+	if (iscons(S))
+		rewrite();
 	eval();
 }
 
-// Rewrite by expanding symbols that contain args
-
-int
-rewrite_args(void)
+void
+rewrite(void)
 {
-	int h, n = 0;
 	save();
-	p2 = pop(); // subst. list
-	p1 = pop(); // expr
+	rewrite_nib();
+	restore();
+}
+
+void
+rewrite_nib(void)
+{
+	int h, i;
+	p1 = pop();
 	if (istensor(p1)) {
-		n = rewrite_args_tensor();
-		restore();
-		return n;
+		push(p1);
+		copy_tensor();
+		p1 = pop();
+		for (i = 0; i < p1->u.tensor->nelem; i++) {
+			push(p1->u.tensor->elem[i]);
+			rewrite();
+			p1->u.tensor->elem[i] = pop();
+		}
+		push(p1);
+		return;
 	}
 	if (iscons(p1)) {
 		h = tos;
@@ -17960,60 +17969,36 @@ rewrite_args(void)
 		p1 = cdr(p1);
 		while (iscons(p1)) {
 			push(car(p1));
-			push(p2);
-			n += rewrite_args();
+			rewrite();
 			p1 = cdr(p1);
 		}
 		list(tos - h);
-		restore();
-		return n;
+		return;
 	}
 	// If not a symbol then done
 	if (!issymbol(p1)) {
 		push(p1);
-		restore();
-		return 0;
+		return;
 	}
 	// Try for an argument substitution first
-	p3 = p2;
-	while (iscons(p3)) {
-		if (p1 == car(p3)) {
-			push(cadr(p3));
-			restore();
-			return 1;
+	p2 = S;
+	while (iscons(p2)) {
+		if (p1 == car(p2)) {
+			push(cadr(p2));
+			return;
 		}
-		p3 = cddr(p3);
+		p2 = cddr(p2);
 	}
 	// Get the symbol's binding, try again
-	p3 = get_binding(p1);
+	p2 = get_binding(p1);
+	push(p2);
+	if (p1 == p2)
+		return;
+	rewrite();
+	p3 = pop();
+	if (equal(p2, p3))
+		p3 = p1; // no change, undo get_binding
 	push(p3);
-	if (p1 != p3) {
-		push(p2); // subst. list
-		n = rewrite_args();
-		if (n == 0) {
-			pop();
-			push(p1); // restore if not rewritten with arg
-		}
-	}
-	restore();
-	return n;
-}
-
-int
-rewrite_args_tensor(void)
-{
-	int i, n = 0;
-	push(p1);
-	copy_tensor();
-	p1 = pop();
-	for (i = 0; i < p1->u.tensor->nelem; i++) {
-		push(p1->u.tensor->elem[i]);
-		push(p2);
-		n += rewrite_args();
-		p1->u.tensor->elem[i] = pop();
-	}
-	push(p1);
-	return n;
 }
 
 void
