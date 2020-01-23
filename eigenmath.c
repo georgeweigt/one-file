@@ -1,4 +1,4 @@
-/* January 21, 2020
+/* January 23, 2020
 
 To build and run:
 
@@ -296,6 +296,7 @@ struct tensor {
 #define istensor(p) ((p)->k == TENSOR)
 #define issymbol(p) ((p)->k == SYM)
 #define iskeyword(p) ((p)->k == SYM && (p) - symtab < MARK1)
+#define isadd(p) (car(p) == symbol(ADD))
 
 #define car(p) (iscons(p) ? (p)->u.cons.car : symbol(NIL))
 #define cdr(p) (iscons(p) ? (p)->u.cons.cdr : symbol(NIL))
@@ -321,10 +322,6 @@ struct tensor {
 #define caddadr(p) car(cdr(cdr(car(cdr(p)))))
 #define cdddaddr(p) cdr(cdr(cdr(car(cdr(cdr(p))))))
 #define caddaddr(p) car(cdr(cdr(car(cdr(cdr(p))))))
-
-#define isadd(p) (car(p) == symbol(ADD))
-#define ispower(p) (car(p) == symbol(POWER))
-#define isfactorial(p) (car(p) == symbol(FACTORIAL))
 
 #define ERR ((int) 0x80000000)
 
