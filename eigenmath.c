@@ -1000,8 +1000,8 @@ void eval_transpose(void);
 void transpose(void);
 void transpose_nib(void);
 void eval_user_function(void);
-void rewrite(void);
-void rewrite_nib(void);
+int rewrite(void);
+int rewrite_nib(void);
 void eval_zero(void);
 
 struct atom symtab[NSYM];
@@ -16548,7 +16548,7 @@ run_file(char *filename)
 		stop("cannot open file");
 	// get file size
 	n = (int) lseek(fd, 0, SEEK_END);
-	if (n == -1) {
+	if (n < 0) {
 		close(fd);
 		stop("lseek error");
 	}
@@ -17111,7 +17111,7 @@ eval_setq(void)
 		setq_userfunc();
 	else {
 		if (!issymbol(cadr(p1)))
-			stop("symbol expected");
+			stop("assignment: symbol expected");
 		push(caddr(p1));
 		eval();
 		p2 = pop();
@@ -17138,7 +17138,7 @@ setq_indexed(void)
 	int h;
 	p4 = cadadr(p1);
 	if (!issymbol(p4))
-		stop("symbol expected");
+		stop("indexed assignment: symbol expected");
 	h = tos;
 	push(caddr(p1));
 	eval();
@@ -19592,7 +19592,7 @@ void
 eval_user_function(void)
 {
 	int h;
-	// Use "derivative" instead of "d" if there is no user function "d"
+	// use "derivative" instead of "d" if there is no user function "d"
 	if (car(p1) == symbol(SYMBOL_D) && get_arglist(symbol(SYMBOL_D)) == symbol(NIL)) {
 		eval_derivative();
 		return;
@@ -19600,7 +19600,7 @@ eval_user_function(void)
 	F = get_binding(car(p1));
 	A = get_arglist(car(p1));
 	B = cdr(p1);
-	// Undefined function?
+	// undefined function?
 	if (F == car(p1)) {
 		h = tos;
 		push(F);
@@ -19613,7 +19613,7 @@ eval_user_function(void)
 		list(tos - h);
 		return;
 	}
-	// Create the argument substitution list S
+	// create the argument substitution list S
 	p1 = A;
 	p2 = B;
 	h = tos;
@@ -19626,70 +19626,80 @@ eval_user_function(void)
 	}
 	list(tos - h);
 	S = pop();
-	// Evaluate the function body
+	// evaluate the function body
 	push(F);
 	if (iscons(S))
 		rewrite();
 	eval();
 }
 
-void
+int
 rewrite(void)
 {
+	int n;
 	save();
-	rewrite_nib();
+	n = rewrite_nib();
 	restore();
+	return n;
 }
 
-void
+int
 rewrite_nib(void)
 {
-	int h, i, n;
+	int h, i, m, n = 0;
 	p1 = pop();
 	if (istensor(p1)) {
 		push(p1);
 		copy_tensor();
 		p1 = pop();
-		n = p1->u.tensor->nelem;
-		for (i = 0; i < n; i++) {
+		m = p1->u.tensor->nelem;
+		for (i = 0; i < m; i++) {
 			push(p1->u.tensor->elem[i]);
-			rewrite();
+			n += rewrite();
 			p1->u.tensor->elem[i] = pop();
 		}
 		push(p1);
-		return;
+		return n;
 	}
 	if (iscons(p1)) {
 		h = tos;
-		push(car(p1)); // Do not rewrite function name
+		push(car(p1)); // don't rewrite function name
 		p1 = cdr(p1);
 		while (iscons(p1)) {
 			push(car(p1));
-			rewrite();
+			n += rewrite();
 			p1 = cdr(p1);
 		}
 		list(tos - h);
-		return;
+		return n;
 	}
-	// If not a symbol then done
+	// if not a symbol then done
 	if (!issymbol(p1)) {
 		push(p1);
-		return;
+		return 0; // no substitution
 	}
-	// Try for an argument substitution first
+	// check argument substitution list
 	p2 = S;
 	while (iscons(p2)) {
 		if (p1 == car(p2)) {
 			push(cadr(p2));
-			return;
+			return 1; // substitution occurred
 		}
 		p2 = cddr(p2);
 	}
-	// Get the symbol's binding, try again
+	// get the symbol's binding, try again
 	p2 = get_binding(p1);
+	if (p1 == p2) {
+		push(p1);
+		return 0; // no substitution
+	}
 	push(p2);
-	if (p1 != p2)
-		rewrite();
+	n = rewrite();
+	if (n == 0) {
+		p2 = pop(); // undo
+		push(p1);
+	}
+	return n;
 }
 
 void
