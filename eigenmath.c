@@ -16402,7 +16402,6 @@ stop(char *s)
 			printstr("\n");
 		}
 		term_flag = BLACK;
-		gc();
 		longjmp(stop_return, 1);
 	}
 }
@@ -16559,8 +16558,7 @@ run_file(char *filename)
 		close(fd);
 		malloc_kaput();
 	}
-	push_string(buf);
-	p1 = pop();
+	push_string(buf); // popped below
 	if (read(fd, buf, n) != n) {
 		close(fd);
 		stop("read error");
@@ -16583,10 +16581,7 @@ run_file(char *filename)
 	}
 	trace_ptr = ptr;
 	trace_ptr0 = ptr0;
-	p1->u.str = strdup("NULL");
-	if (p1->u.str == NULL)
-		malloc_kaput();
-	free(buf);
+	pop(); // pop string
 }
 
 // The char pointers token_str and scan_str are pointers to the input string as
