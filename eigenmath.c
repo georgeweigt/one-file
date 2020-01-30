@@ -1,4 +1,4 @@
-/* January 29, 2020
+/* January 30, 2020
 
 To build and run:
 
@@ -16402,6 +16402,7 @@ stop(char *s)
 			printstr("\n");
 		}
 		term_flag = BLACK;
+		gc();
 		longjmp(stop_return, 1);
 	}
 }
@@ -16558,7 +16559,8 @@ run_file(char *filename)
 		close(fd);
 		malloc_kaput();
 	}
-	push_string(buf); // for gc
+	push_string(buf);
+	p1 = pop();
 	if (read(fd, buf, n) != n) {
 		close(fd);
 		stop("read error");
@@ -16581,7 +16583,10 @@ run_file(char *filename)
 	}
 	trace_ptr = ptr;
 	trace_ptr0 = ptr0;
-	pop(); // buf is freed on next gc
+	p1->u.str = strdup("NULL");
+	if (p1->u.str == NULL)
+		malloc_kaput();
+	free(buf);
 }
 
 // The char pointers token_str and scan_str are pointers to the input string as
