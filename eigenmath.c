@@ -1,4 +1,4 @@
-/* January 30, 2020
+/* February 5, 2020
 
 To build and run:
 
@@ -5721,22 +5721,6 @@ next_permutation(int n, int *a, int *c, int *d)
 	return 1;
 }
 
-//	Examples:
-//
-//	   012345678
-//	-2 .........
-//	-1 .........
-//	 0 ..hello..	x=2, y=0, h=1, w=5
-//	 1 .........
-//	 2 .........
-//
-//	   012345678
-//	-2 .........
-//	-1 ..355....
-//	 0 ..---....	x=2, y=-1, h=3, w=3
-//	 1 ..113....
-//	 2 .........
-
 #undef YMAX
 #define YMAX 10000
 
@@ -5744,9 +5728,9 @@ struct glyph {
 	int c, x, y;
 } chartab[YMAX];
 
-int yindex, level, emit_x;
+int yindex;
+int emit_x;
 int expr_level;
-int display_flag;
 
 void
 display(void)
@@ -5754,7 +5738,7 @@ display(void)
 	save();
 	p1 = pop();
 	yindex = 0;
-	level = 0;
+	expr_level = 0;
 	emit_x = 0;
 	emit_top_expr(p1);
 	print_it();
@@ -5778,7 +5762,7 @@ emit_top_expr(struct atom *p)
 int
 will_be_displayed_as_fraction(struct atom *p)
 {
-	if (level > 0)
+	if (expr_level > 0)
 		return 0;
 	if (isfraction(p))
 		return 1;
@@ -5797,7 +5781,6 @@ will_be_displayed_as_fraction(struct atom *p)
 void
 emit_expr(struct atom *p)
 {
-	expr_level++;
 	if (car(p) == symbol(ADD)) {
 		p = cdr(p);
 		if (is_negative(car(p))) {
@@ -5828,7 +5811,6 @@ emit_expr(struct atom *p)
 		}
 		emit_term(p);
 	}
-	expr_level--;
 }
 
 void
@@ -5871,7 +5853,7 @@ emit_term(struct atom *p)
 	int n;
 	if (car(p) == symbol(MULTIPLY)) {
 		n = count_denominators(p);
-		if (n && level == 0)
+		if (n && expr_level == 0)
 			emit_fraction(p, n);
 		else
 			emit_multiply(p, n);
@@ -6129,7 +6111,7 @@ emit_factor(struct atom *p)
 		return;
 	}
 	if (isnum(p)) {
-		if (level == 0)
+		if (expr_level == 0)
 			emit_numerical_fraction(p);
 		else
 			emit_number(p, 0);
@@ -6212,7 +6194,7 @@ emit_power(struct atom *p)
 		emit_char(')');
 		return;
 	}
-	if (level > 0) {
+	if (expr_level > 0) {
 		if (isminusone(caddr(p))) {
 			emit_char('1');
 			emit_char('/');
@@ -6249,9 +6231,9 @@ emit_power(struct atom *p)
 	else
 		emit_subexpr(cadr(p));
 	k2 = yindex;
-	level++;
+	expr_level++;
 	emit_expr(caddr(p));
-	level--;
+	expr_level--;
 	fixup_power(k1, k2);
 }
 
@@ -6279,9 +6261,9 @@ emit_denominator(struct atom *p, int n)
 		emit_subexpr(cadr(p));
 	k2 = yindex;
 	// emit exponent, don't emit minus sign
-	level++;
+	expr_level++;
 	emit_unsigned_expr(caddr(p));
-	level--;
+	expr_level--;
 	fixup_power(k1, k2);
 }
 
@@ -6528,7 +6510,7 @@ emit_number(struct atom *p, int emit_sign)
 			k1 = yindex;
 			emit_str("10");
 			k2 = yindex;
-			level++;
+			expr_level++;
 			if (*s == '+')
 				s++;
 			else if (*s == '-')
@@ -6536,7 +6518,7 @@ emit_number(struct atom *p, int emit_sign)
 			while (*s == '0')
 				s++; // skip leading zeroes
 			emit_str(s);
-			level--;
+			expr_level--;
 			fixup_power(k1, k2);
 		}
 		break;
@@ -6591,7 +6573,7 @@ char *
 getdisplaystr(void)
 {
 	yindex = 0;
-	level = 0;
+	expr_level = 0;
 	emit_x = 0;
 	emit_expr(pop());
 	fill_buf();
