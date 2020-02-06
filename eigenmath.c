@@ -1,4 +1,4 @@
-/* February 5, 2020
+/* February 6, 2020
 
 To build and run:
 
@@ -561,7 +561,6 @@ void fixup_fraction(int x, int k1, int k2);
 void fixup_power(int k1, int k2);
 void move(int j, int k, int dx, int dy);
 void get_size(int j, int k, int *h, int *w, int *y);
-void displaychar(int c);
 void emit_char(int c);
 void emit_str(char *s);
 void emit_number(struct atom *p, int emit_sign);
@@ -6442,12 +6441,6 @@ get_size(int j, int k, int *h, int *w, int *y)
 	*h = max_y - min_y + 1;
 	*w = max_x - min_x + 1;
 	*y = min_y;
-}
-
-void
-displaychar(int c)
-{
-	emit_char(c);
 }
 
 void
