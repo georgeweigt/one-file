@@ -1,4 +1,4 @@
-/* February 11, 2020
+/* February 12, 2020
 
 To build and run:
 
@@ -210,6 +210,7 @@ enum {
 	LISP,
 	LOG,
 	MAG,
+	MATHJAX,
 	MATHML,
 	MOD,
 	MULTIPLY,
@@ -789,9 +790,14 @@ void begin_html(void);
 void end_html(void);
 void begin_latex(void);
 void end_latex(void);
+void begin_mathjax(void);
+void end_mathjax(void);
 void eval_draw(void);
 void eval_exit(void);
 void malloc_kaput(void);
+void eval_mathjax(void);
+void mathjax(void);
+void mathjax_nib(void);
 void eval_mathml(void);
 void mathml(void);
 void mathml_nib(void);
@@ -7738,6 +7744,7 @@ void (*functab[])(void) = {
 	eval_lisp,
 	eval_log,
 	eval_mag,
+	eval_mathjax,
 	eval_mathml,
 	eval_mod,
 	eval_multiply,
@@ -11170,14 +11177,14 @@ latex_term(struct atom *p)
 	struct atom *q, *t;
 	if (car(p) == symbol(MULTIPLY)) {
 		// any denominators?
-		q = cdr(p);
-		while (iscons(q)) {
-			t = car(q);
-			if (car(t) == symbol(POWER) && isnegativenumber(caddr(t)))
+		t = cdr(p);
+		while (iscons(t)) {
+			q = car(t);
+			if (car(q) == symbol(POWER) && isnegativenumber(caddr(q)))
 				break;
-			q = cdr(q);
+			t = cdr(t);
 		}
-		if (iscons(q)) {
+		if (iscons(t)) {
 			print_str("\\frac{");
 			latex_numerators(p);
 			print_str("}{");
@@ -11187,9 +11194,13 @@ latex_term(struct atom *p)
 		}
 		// no denominators
 		p = cdr(p);
-		if (isrational(car(p)) && isminusone(car(p)))
+		q = car(p);
+		if (isrational(q) && isminusone(q))
 			p = cdr(p); // skip -1
+		latex_factor(car(p));
+		p = cdr(p);
 		while (iscons(p)) {
+			print_str("\\,"); // thin space between factors
 			latex_factor(car(p));
 			p = cdr(p);
 		}
@@ -11204,21 +11215,23 @@ latex_numerators(struct atom *p)
 	char *s;
 	struct atom *q;
 	p = cdr(p);
+	q = car(p);
+	if (isrational(q)) {
+		if (!MEQUAL(q->u.q.a, 1)) {
+			s = mstr(q->u.q.a); // numerator
+			print_str(s);
+			n++;
+		}
+		p = cdr(p);
+	}
 	while (iscons(p)) {
 		q = car(p);
 		if (car(q) == symbol(POWER) && isnegativenumber(caddr(q))) {
 			p = cdr(p);
 			continue; // printed in denominator
 		}
-		if (isrational(q)) {
-			if (!MEQUAL(q->u.q.a, 1)) {
-				s = mstr(q->u.q.a); // numerator
-				print_str(s);
-				n++;
-			}
-			p = cdr(p);
-			continue;
-		}
+		if (n)
+			print_str("\\,"); // thin space between factors
 		latex_factor(q);
 		n++;
 		p = cdr(p);
@@ -11234,21 +11247,23 @@ latex_denominators(struct atom *p)
 	char *s;
 	struct atom *q;
 	p = cdr(p);
+	q = car(p);
+	if (isrational(q)) {
+		if (!MEQUAL(q->u.q.b, 1)) {
+			s = mstr(q->u.q.b); // denominator
+			print_str(s);
+			n++;
+		}
+		p = cdr(p);
+	}
 	while (iscons(p)) {
 		q = car(p);
-		if (isrational(q)) {
-			if (!MEQUAL(q->u.q.b, 1)) {
-				s = mstr(q->u.q.b); // denominator
-				print_str(s);
-				n++;
-			}
-			p = cdr(p);
-			continue;
-		}
 		if (car(q) != symbol(POWER) || !isnegativenumber(caddr(q))) {
 			p = cdr(p);
 			continue; // not a denominator
 		}
+		if (n)
+			print_str("\\,"); // thin space between factors
 		// example (-1)^(-1/4)
 		if (isminusone(cadr(q))) {
 			print_str("(-1)^{");
@@ -11260,15 +11275,15 @@ latex_denominators(struct atom *p)
 		}
 		// example 1/y
 		if (isminusone(caddr(q))) {
-			latex_factor(cadr(q));	// y
+			latex_factor(cadr(q)); // y
 			n++;
 			p = cdr(p);
 			continue;
 		}
 		// example 1/y^2
-		latex_base(cadr(q));		// y
+		latex_base(cadr(q)); // y
 		print_str("^{");
-		latex_number(caddr(q));		// -2 (sign not printed)
+		latex_number(caddr(q)); // -2 (sign not printed)
 		print_str("}");
 		n++;
 		p = cdr(p);
@@ -11380,30 +11395,30 @@ latex_power(struct atom *p)
 	// case e^x
 	if (cadr(p) == symbol(EXP1)) {
 		print_str("\\operatorname{exp}\\left(");
-		latex_expr(caddr(p));		// x
+		latex_expr(caddr(p)); // x
 		print_str("\\right)");
 		return;
 	}
 	// example 1/y
 	if (isminusone(caddr(p))) {
 		print_str("\\frac{1}{");
-		latex_expr(cadr(p));		// y
+		latex_expr(cadr(p)); // y
 		print_str("}");
 		return;
 	}
 	// example 1/y^2
 	if (isnegativenumber(caddr(p))) {
 		print_str("\\frac{1}{");
-		latex_base(cadr(p));		// y
+		latex_base(cadr(p)); // y
 		print_str("^{");
-		latex_number(caddr(p));		// -2 (sign not printed)
+		latex_number(caddr(p)); // -2 (sign not printed)
 		print_str("}}");
 		return;
 	}
 	// example y^x
-	latex_base(cadr(p));			// y
+	latex_base(cadr(p)); // y
 	print_str("^{");
-	latex_exponent(caddr(p));		// x
+	latex_exponent(caddr(p)); // x
 	print_str("}");
 }
 
@@ -11443,13 +11458,13 @@ latex_imaginary(struct atom *p)
 	// example (-1)^(-1/4)
 	if (isnegativenumber(caddr(p))) {
 		print_str("\\frac{1}{(-1)^{");
-		latex_number(caddr(p));		// -1/4 (sign not printed)
+		latex_number(caddr(p)); // -1/4 (sign not printed)
 		print_str("}}");
 		return;
 	}
 	// example (-1)^x
 	print_str("(-1)^{");
-	latex_expr(caddr(p));			// x
+	latex_expr(caddr(p)); // x
 	print_str("}");
 }
 
@@ -11505,7 +11520,7 @@ latex_function(struct atom *p)
 	}
 	if (car(p) == symbol(TESTGT)) {
 		latex_expr(cadr(p));
-		print_str(">");
+		print_str(" > ");
 		latex_expr(caddr(p));
 		return;
 	}
@@ -11517,7 +11532,7 @@ latex_function(struct atom *p)
 	}
 	if (car(p) == symbol(TESTLT)) {
 		latex_expr(cadr(p));
-		print_str("<");
+		print_str(" < ");
 		latex_expr(caddr(p));
 		return;
 	}
@@ -11670,7 +11685,7 @@ latex_tensor_matrix(struct tensor *t, int d, int *k)
 void
 latex_string(struct atom *p)
 {
-	print_str("\\,\\text{");
+	print_str("\\text{");
 	print_str(p->u.str);
 	print_str("}");
 }
@@ -12145,9 +12160,9 @@ mag_nib(void)
 }
 
 int html_flag;
-int html_state;
 int latex_flag;
-int latex_state;
+int mathjax_flag;
+int doc_state;
 char *infile;
 char inbuf[1000];
 
@@ -12160,15 +12175,18 @@ main(int argc, char *argv[])
 			html_flag = 1;
 		else if (strcmp(argv[i], "--latex") == 0)
 			latex_flag = 1;
+		else if (strcmp(argv[i], "--mathjax") == 0)
+			mathjax_flag = 1;
 		else
 			infile = argv[i];
 	}
 	clear();
 	begin_document();
-	if (infile == NULL)
+	if (infile)
+		run_infile();
+	if (isatty(fileno(stdout)))
 		for (;;)
 			eval_stdin();
-	run_infile();
 	end_document();
 	return 0;
 }
@@ -12176,16 +12194,16 @@ main(int argc, char *argv[])
 void
 eval_stdin(void)
 {
-	if (html_flag)
+	if (html_flag || mathjax_flag)
 		printf("<!--? ");
 	else if (latex_flag)
 		printf("%%? ");
 	else
 		printf("? ");
 	fgets(inbuf, sizeof inbuf, stdin);
-	if (html_flag)
+	if (html_flag || mathjax_flag)
 		printf("-->\n");
-	if (html_flag || latex_flag)
+	if (html_flag || latex_flag || mathjax_flag)
 		printbuf(inbuf, BLUE);
 	run(inbuf);
 }
@@ -12197,13 +12215,13 @@ run_infile(void)
 	char *buf;
 	fd = open(infile, O_RDONLY, 0);
 	if (fd == -1) {
-		printf("cannot open %s\n", infile);
+		fprintf(stderr, "cannot open %s\n", infile);
 		exit(1);
 	}
 	// get file size
 	n = lseek(fd, 0, SEEK_END);
 	if (n == -1) {
-		printf("lseek err\n");
+		fprintf(stderr, "lseek err\n");
 		exit(1);
 	}
 	lseek(fd, 0, SEEK_SET);
@@ -12211,7 +12229,7 @@ run_infile(void)
 	if (buf == NULL)
 		malloc_kaput();
 	if (read(fd, buf, n) != n) {
-		printf("read err\n");
+		fprintf(stderr, "read err\n");
 		exit(1);
 	}
 	close(fd);
@@ -12223,24 +12241,24 @@ run_infile(void)
 void
 printbuf(char *s, int color)
 {
-	if (html_flag) {
+	if (html_flag || mathjax_flag) {
 		switch (color) {
 		case BLACK:
-			if (html_state != 1) {
+			if (doc_state != 1) {
 				fputs("<p style='color:black;font-family:courier'>\n", stdout);
-				html_state = 1;
+				doc_state = 1;
 			}
 			break;
 		case BLUE:
-			if (html_state != 2) {
+			if (doc_state != 2) {
 				fputs("<p style='color:blue;font-family:courier'>\n", stdout);
-				html_state = 2;
+				doc_state = 2;
 			}
 			break;
 		case RED:
-			if (html_state != 3) {
+			if (doc_state != 3) {
 				fputs("<p style='color:red;font-family:courier'>\n", stdout);
-				html_state = 3;
+				doc_state = 3;
 			}
 			break;
 		}
@@ -12259,9 +12277,9 @@ printbuf(char *s, int color)
 		}
 		fputc('\n', stdout);
 	} else if (latex_flag) {
-		if (latex_state == 0) {
+		if (doc_state == 0) {
 			fputs("\\begin{verbatim}\n", stdout);
-			latex_state = 1;
+			doc_state = 1;
 		}
 		fputs(s, stdout);
 	} else
@@ -12276,16 +12294,20 @@ cmdisplay(void)
 		fputs("<p>\n", stdout);
 		fputs(outbuf, stdout);
 		fputs("\n\n", stdout);
-		html_state = 0;
 	} else if (latex_flag) {
 		latex();
-		if (latex_state)
+		if (doc_state)
 			fputs("\\end{verbatim}\n\n", stdout);
 		fputs(outbuf, stdout);
 		fputs("\n\n", stdout);
-		latex_state = 0;
+	} else if (mathjax_flag) {
+		mathjax();
+		fputs("<p>\n", stdout);
+		fputs(outbuf, stdout);
+		fputs("\n\n", stdout);
 	} else
 		display();
+	doc_state = 0;
 }
 
 void
@@ -12295,6 +12317,8 @@ begin_document(void)
 		begin_html();
 	else if (latex_flag)
 		begin_latex();
+	else if (mathjax_flag)
+		begin_mathjax();
 }
 
 void
@@ -12304,45 +12328,65 @@ end_document(void)
 		end_html();
 	else if (latex_flag)
 		end_latex();
+	else if (mathjax_flag)
+		end_mathjax();
 }
 
 void
 begin_html(void)
 {
-	fputs("<html><head></head><body style='font-size:20pt'>\n\n", stdout);
+	fputs("<html>\n<head>\n</head>\n<body style='font-size:20pt'>\n\n", stdout);
 }
 
 void
 end_html(void)
 {
-	fputs("</body></html>\n", stdout);
+	fputs("</body>\n</html>\n", stdout);
 }
-
-char *begin_document_str =
-"\\documentclass[12pt]{article}\n"
-"\\usepackage{amsmath,amsfonts,amssymb}\n"
-"\% change margins\n"
-"\\addtolength{\\oddsidemargin}{-.875in}\n"
-"\\addtolength{\\evensidemargin}{-.875in}\n"
-"\\addtolength{\\textwidth}{1.75in}\n"
-"\\addtolength{\\topmargin}{-.875in}\n"
-"\\addtolength{\\textheight}{1.75in}\n"
-"\\begin{document}\n\n";
-
-char *end_document_str = "\\end{document}\n";
 
 void
 begin_latex(void)
 {
-	fputs(begin_document_str, stdout);
+	fputs(
+	"\\documentclass[12pt]{article}\n"
+	"\\usepackage{amsmath,amsfonts,amssymb}\n"
+	"\% change margins\n"
+	"\\addtolength{\\oddsidemargin}{-.875in}\n"
+	"\\addtolength{\\evensidemargin}{-.875in}\n"
+	"\\addtolength{\\textwidth}{1.75in}\n"
+	"\\addtolength{\\topmargin}{-.875in}\n"
+	"\\addtolength{\\textheight}{1.75in}\n"
+	"\\begin{document}\n\n",
+	stdout);
 }
 
 void
 end_latex(void)
 {
-	if (latex_state)
+	if (doc_state)
 		fputs("\\end{verbatim}\n\n", stdout);
-	fputs(end_document_str, stdout);
+	fputs("\\end{document}\n", stdout);
+}
+
+void
+begin_mathjax(void)
+{
+	fputs(
+	"<!DOCTYPE html>\n"
+	"<html>\n"
+	"<head>\n"
+	"<script src='https://polyfill.io/v3/polyfill.min.js?features=es6'></script>\n"
+	"<script type='text/javascript' id='MathJax-script' async\n"
+	"src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js'></script>\n"
+	"</head>\n"
+	"<body>\n",
+	stdout);
+}
+
+void
+end_mathjax(void)
+{
+	fputs("</body>\n</html>\n", stdout);
 }
 
 void
@@ -12363,6 +12407,38 @@ malloc_kaput(void)
 {
 	fprintf(stderr, "malloc kaput\n");
 	exit(1);
+}
+
+void
+eval_mathjax(void)
+{
+	push(cadr(p1));
+	eval();
+	mathjax();
+	push_string(outbuf);
+}
+
+void
+mathjax(void)
+{
+	save();
+	mathjax_nib();
+	restore();
+}
+
+void
+mathjax_nib(void)
+{
+	outbuf_index = 0;
+	p1 = pop();
+	if (isstr(p1))
+		mml_string(p1, 0);
+	else {
+		print_str("$$\n");
+		latex_expr(p1);
+		print_str("\n$$");
+	}
+	print_char('\0');
 }
 
 #define MML_MINUS "<mo rspace='0'>-</mo>"
@@ -12397,7 +12473,7 @@ mathml_nib(void)
 	if (isstr(p1))
 		mml_string(p1, 0);
 	else {
-		print_str("<math>");
+		print_str("<math xmlns='http://www.w3.org/1998/Math/MathML' display='block'>");
 		mml_expr(p1);
 		print_str("</math>");
 	}
@@ -12437,14 +12513,14 @@ mml_term(struct atom *p)
 	struct atom *q, *t;
 	if (car(p) == symbol(MULTIPLY)) {
 		// any denominators?
-		q = cdr(p);
-		while (iscons(q)) {
-			t = car(q);
-			if (car(t) == symbol(POWER) && isnegativenumber(caddr(t)))
+		t = cdr(p);
+		while (iscons(t)) {
+			q = car(t);
+			if (car(q) == symbol(POWER) && isnegativenumber(caddr(q)))
 				break;
-			q = cdr(q);
+			t = cdr(t);
 		}
-		if (iscons(q)) {
+		if (iscons(t)) {
 			print_str("<mfrac>");
 			print_str("<mrow>");
 			mml_numerators(p);
@@ -12457,7 +12533,8 @@ mml_term(struct atom *p)
 		}
 		// no denominators
 		p = cdr(p);
-		if (isrational(car(p)) && isminusone(car(p)))
+		q = car(p);
+		if (isrational(q) && isminusone(q))
 			p = cdr(p); // skip -1
 		while (iscons(p)) {
 			mml_factor(car(p));
@@ -12474,20 +12551,20 @@ mml_numerators(struct atom *p)
 	char *s;
 	struct atom *q;
 	p = cdr(p);
+	q = car(p);
+	if (isrational(q)) {
+		if (!MEQUAL(q->u.q.a, 1)) {
+			s = mstr(q->u.q.a); // numerator
+			mml_mn(s);
+			n++;
+		}
+		p = cdr(p);
+	}
 	while (iscons(p)) {
 		q = car(p);
 		if (car(q) == symbol(POWER) && isnegativenumber(caddr(q))) {
 			p = cdr(p);
 			continue; // printed in denominator
-		}
-		if (isrational(q)) {
-			if (!MEQUAL(q->u.q.a, 1)) {
-				s = mstr(q->u.q.a); // numerator
-				mml_mn(s);
-				n++;
-			}
-			p = cdr(p);
-			continue;
 		}
 		mml_factor(q);
 		n++;
@@ -12504,17 +12581,17 @@ mml_denominators(struct atom *p)
 	char *s;
 	struct atom *q;
 	p = cdr(p);
+	q = car(p);
+	if (isrational(q)) {
+		if (!MEQUAL(q->u.q.b, 1)) {
+			s = mstr(q->u.q.b); // denominator
+			mml_mn(s);
+			n++;
+		}
+		p = cdr(p);
+	}
 	while (iscons(p)) {
 		q = car(p);
-		if (isrational(q)) {
-			if (!MEQUAL(q->u.q.b, 1)) {
-				s = mstr(q->u.q.b); // denominator
-				mml_mn(s);
-				n++;
-			}
-			p = cdr(p);
-			continue;
-		}
 		if (car(q) != symbol(POWER) || !isnegativenumber(caddr(q))) {
 			p = cdr(p);
 			continue; // not a denominator
@@ -12543,10 +12620,10 @@ mml_denominators(struct atom *p)
 		// example 1/y^2
 		print_str("<msup>");
 		print_str("<mrow>");
-		mml_base(cadr(q));	// y
+		mml_base(cadr(q)); // y
 		print_str("</mrow>");
 		print_str("<mrow>");
-		mml_number(caddr(q));	// -2 (sign not printed)
+		mml_number(caddr(q)); // -2 (sign not printed)
 		print_str("</mrow>");
 		print_str("</msup>");
 		n++;
@@ -12672,9 +12749,9 @@ mml_power(struct atom *p)
 	// example 1/y
 	if (isminusone(caddr(p))) {
 		print_str("<mfrac>");
-		mml_mn("1");		// 1
+		mml_mn("1"); // 1
 		print_str("<mrow>");
-		mml_expr(cadr(p));	// y
+		mml_expr(cadr(p)); // y
 		print_str("</mrow>");
 		print_str("</mfrac>");
 		return;
@@ -12682,13 +12759,13 @@ mml_power(struct atom *p)
 	// example 1/y^2
 	if (isnegativenumber(caddr(p))) {
 		print_str("<mfrac>");
-		mml_mn("1");		// 1
+		mml_mn("1"); // 1
 		print_str("<msup>");
 		print_str("<mrow>");
-		mml_base(cadr(p));	// y
+		mml_base(cadr(p)); // y
 		print_str("</mrow>");
 		print_str("<mrow>");
-		mml_number(caddr(p));	// -2 (sign not printed)
+		mml_number(caddr(p)); // -2 (sign not printed)
 		print_str("</mrow>");
 		print_str("</msup>");
 		print_str("</mfrac>");
@@ -12697,10 +12774,10 @@ mml_power(struct atom *p)
 	// example y^x
 	print_str("<msup>");
 	print_str("<mrow>");
-	mml_base(cadr(p));	// y
+	mml_base(cadr(p)); // y
 	print_str("</mrow>");
 	print_str("<mrow>");
-	mml_exponent(caddr(p));	// x
+	mml_exponent(caddr(p)); // x
 	print_str("</mrow>");
 	print_str("</msup>");
 }
@@ -19858,6 +19935,7 @@ init_symbol_table(void)
 	std_symbol("lisp", LISP);
 	std_symbol("log", LOG);
 	std_symbol("mag", MAG);
+	std_symbol("mathjax", MATHJAX);
 	std_symbol("mathml", MATHML);
 	std_symbol("mod", MOD);
 	std_symbol("*", MULTIPLY);
