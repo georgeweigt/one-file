@@ -1,4 +1,4 @@
-/* February 12, 2020
+/* February 13, 2020
 
 To build and run:
 
@@ -11,15 +11,21 @@ To run a script:
 
 	./eigenmath scriptfilename
 
+Sample scripts are available at www.eigenmath.org
+
 To generate LaTeX output:
 
         ./eigenmath --latex scriptfilename >foo.tex
 
 To generate MathML output:
 
-        ./eigenmath --html scriptfilename >foo.html
+        ./eigenmath --mathml scriptfilename >foo.html
 
-Sample scripts are available at www.eigenmath.org
+To generate MathJax output:
+
+        ./eigenmath --mathjax scriptfilename >foo.html
+
+MathML and MathJax results look best on Firefox.
 
 
 BSD 2-Clause License
@@ -781,15 +787,17 @@ void mag(void);
 void mag_nib(void);
 int main(int argc, char *argv[]);
 void eval_stdin(void);
+void prompt(void);
+void unprompt(void);
 void run_infile(void);
 void printbuf(char *s, int color);
 void cmdisplay(void);
 void begin_document(void);
 void end_document(void);
-void begin_html(void);
-void end_html(void);
 void begin_latex(void);
 void end_latex(void);
+void begin_mathml(void);
+void end_mathml(void);
 void begin_mathjax(void);
 void end_mathjax(void);
 void eval_draw(void);
@@ -11174,6 +11182,7 @@ latex_expr(struct atom *p)
 void
 latex_term(struct atom *p)
 {
+	int n = 0;
 	struct atom *q, *t;
 	if (car(p) == symbol(MULTIPLY)) {
 		// any denominators?
@@ -11197,10 +11206,9 @@ latex_term(struct atom *p)
 		q = car(p);
 		if (isrational(q) && isminusone(q))
 			p = cdr(p); // skip -1
-		latex_factor(car(p));
-		p = cdr(p);
 		while (iscons(p)) {
-			print_str("\\,"); // thin space between factors
+			if (++n > 1)
+				print_str("\\,"); // thin space between factors
 			latex_factor(car(p));
 			p = cdr(p);
 		}
@@ -11574,7 +11582,7 @@ latex_symbol(struct atom *p)
 {
 	int n;
 	char *s;
-	if (iskeyword(p) || p == symbol(AUTOEXPAND) || p == symbol(LAST) || p == symbol(TRACE) || p == symbol(TTY)) {
+	if (iskeyword(p) || p == symbol(LAST) || p == symbol(NIL) || p == symbol(TRACE) || p == symbol(TTY)) {
 		print_str("\\operatorname{");
 		print_str(p->u.printname);
 		print_str("}");
@@ -12159,24 +12167,26 @@ mag_nib(void)
 	push(p1);
 }
 
-int html_flag;
-int latex_flag;
-int mathjax_flag;
+int doc_type;
 int doc_state;
 char *infile;
 char inbuf[1000];
+
+#define DOC_LATEX 1
+#define DOC_MATHML 2
+#define DOC_MATHJAX 3
 
 int
 main(int argc, char *argv[])
 {
 	int i;
 	for (i = 1; i < argc; i++) {
-		if (strcmp(argv[i], "--html") == 0)
-			html_flag = 1;
-		else if (strcmp(argv[i], "--latex") == 0)
-			latex_flag = 1;
+		if (strcmp(argv[i], "--latex") == 0)
+			doc_type = DOC_LATEX;
+		else if (strcmp(argv[i], "--mathml") == 0)
+			doc_type = DOC_MATHML;
 		else if (strcmp(argv[i], "--mathjax") == 0)
-			mathjax_flag = 1;
+			doc_type = DOC_MATHJAX;
 		else
 			infile = argv[i];
 	}
@@ -12194,18 +12204,44 @@ main(int argc, char *argv[])
 void
 eval_stdin(void)
 {
-	if (html_flag || mathjax_flag)
-		printf("<!--? ");
-	else if (latex_flag)
-		printf("%%? ");
-	else
-		printf("? ");
+	prompt();
 	fgets(inbuf, sizeof inbuf, stdin);
-	if (html_flag || mathjax_flag)
-		printf("-->\n");
-	if (html_flag || latex_flag || mathjax_flag)
-		printbuf(inbuf, BLUE);
+	unprompt();
 	run(inbuf);
+}
+
+void
+prompt(void)
+{
+	switch (doc_type) {
+	case DOC_LATEX:
+		printf("%%? ");
+		break;
+	case DOC_MATHML:
+	case DOC_MATHJAX:
+		printf("<!--? ");
+		break;
+	default:
+		printf("? ");
+		break;
+	}
+}
+
+void
+unprompt(void)
+{
+	switch (doc_type) {
+	case DOC_LATEX:
+		printbuf(inbuf, BLUE);
+		break;
+	case DOC_MATHML:
+	case DOC_MATHJAX:
+		printf("-->\n");
+		printbuf(inbuf, BLUE);
+		break;
+	default:
+		break;
+	}
 }
 
 void
@@ -12241,23 +12277,32 @@ run_infile(void)
 void
 printbuf(char *s, int color)
 {
-	if (html_flag || mathjax_flag) {
+	switch (doc_type) {
+	case DOC_LATEX:
+		if (doc_state == 0) {
+			fputs("\\begin{verbatim}\n", stdout);
+			doc_state = 1;
+		}
+		fputs(s, stdout);
+		break;
+	case DOC_MATHML:
+	case DOC_MATHJAX:
 		switch (color) {
 		case BLACK:
 			if (doc_state != 1) {
-				fputs("<p style='color:black;font-family:courier'>\n", stdout);
+				fputs("<p style='color:black;font-family:courier;font-size:20pt'>\n", stdout);
 				doc_state = 1;
 			}
 			break;
 		case BLUE:
 			if (doc_state != 2) {
-				fputs("<p style='color:blue;font-family:courier'>\n", stdout);
+				fputs("<p style='color:blue;font-family:courier;font-size:20pt'>\n", stdout);
 				doc_state = 2;
 			}
 			break;
 		case RED:
 			if (doc_state != 3) {
-				fputs("<p style='color:red;font-family:courier'>\n", stdout);
+				fputs("<p style='color:red;font-family:courier;font-size:20pt'>\n", stdout);
 				doc_state = 3;
 			}
 			break;
@@ -12276,72 +12321,77 @@ printbuf(char *s, int color)
 			s++;
 		}
 		fputc('\n', stdout);
-	} else if (latex_flag) {
-		if (doc_state == 0) {
-			fputs("\\begin{verbatim}\n", stdout);
-			doc_state = 1;
-		}
+		break;
+	default:
 		fputs(s, stdout);
-	} else
-		fputs(s, stdout);
+		break;
+	}
 }
 
 void
 cmdisplay(void)
 {
-	if (html_flag) {
-		mathml();
-		fputs("<p>\n", stdout);
-		fputs(outbuf, stdout);
-		fputs("\n\n", stdout);
-	} else if (latex_flag) {
+	switch (doc_type) {
+	case DOC_LATEX:
 		latex();
 		if (doc_state)
 			fputs("\\end{verbatim}\n\n", stdout);
 		fputs(outbuf, stdout);
 		fputs("\n\n", stdout);
-	} else if (mathjax_flag) {
-		mathjax();
-		fputs("<p>\n", stdout);
+		break;
+	case DOC_MATHML:
+		mathml();
+		fputs("<p style='font-size:20pt'>\n", stdout);
 		fputs(outbuf, stdout);
 		fputs("\n\n", stdout);
-	} else
+		break;
+	case DOC_MATHJAX:
+		mathjax();
+		fputs("<p style='font-size:20pt'>\n", stdout);
+		fputs(outbuf, stdout);
+		fputs("\n\n", stdout);
+		break;
+	default:
 		display();
+		break;
+	}
 	doc_state = 0;
 }
 
 void
 begin_document(void)
 {
-	if (html_flag)
-		begin_html();
-	else if (latex_flag)
+	switch (doc_type) {
+	case DOC_LATEX:
 		begin_latex();
-	else if (mathjax_flag)
+		break;
+	case DOC_MATHML:
+		begin_mathml();
+		break;
+	case DOC_MATHJAX:
 		begin_mathjax();
+		break;
+	default:
+		break;
+	}
 }
 
 void
 end_document(void)
 {
-	if (html_flag)
-		end_html();
-	else if (latex_flag)
+	switch (doc_type) {
+	case DOC_LATEX:
 		end_latex();
-	else if (mathjax_flag)
+		break;
+	case DOC_MATHML:
+		end_mathml();
+		break;
+	case DOC_MATHJAX:
 		end_mathjax();
-}
-
-void
-begin_html(void)
-{
-	fputs("<html>\n<head>\n</head>\n<body style='font-size:20pt'>\n\n", stdout);
-}
-
-void
-end_html(void)
-{
-	fputs("</body>\n</html>\n", stdout);
+		break;
+	default:
+		break;
+	}
 }
 
 void
@@ -12369,6 +12419,18 @@ end_latex(void)
 }
 
 void
+begin_mathml(void)
+{
+	fputs("<html>\n<head>\n</head>\n<body>\n\n", stdout);
+}
+
+void
+end_mathml(void)
+{
+	fputs("</body>\n</html>\n", stdout);
+}
+
+void
 begin_mathjax(void)
 {
 	fputs(
@@ -12379,7 +12441,7 @@ begin_mathjax(void)
 	"<script type='text/javascript' id='MathJax-script' async\n"
 	"src='https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js'></script>\n"
 	"</head>\n"
-	"<body>\n",
+	"<body>\n\n",
 	stdout);
 }
 
@@ -12443,10 +12505,10 @@ mathjax_nib(void)
 
 #define MML_MINUS "<mo rspace='0'>-</mo>"
 #define MML_MINUS_1 "<mo>(</mo><mo rspace='0'>-</mo><mn>1</mn><mo>)</mo>"
-#define MML_LP "<mo form='prefix'>(</mo>"
-#define MML_RP "<mo form='postfix'>)</mo>"
-#define MML_LB "<mo form='prefix'>[</mo>"
-#define MML_RB "<mo form='postfix'>]</mo>"
+#define MML_LP "<mrow><mo>(</mo>"
+#define MML_RP "<mo>)</mo></mrow>"
+#define MML_LB "<mrow><mo>[</mo>"
+#define MML_RB "<mo>]</mo></mrow>"
 
 void
 eval_mathml(void)
@@ -12948,7 +13010,7 @@ mml_symbol(struct atom *p)
 {
 	int n;
 	char *s;
-	if (iskeyword(p) || p == symbol(AUTOEXPAND) || p == symbol(LAST) || p == symbol(TRACE) || p == symbol(TTY)) {
+	if (iskeyword(p) || p == symbol(LAST) || p == symbol(NIL) || p == symbol(TRACE) || p == symbol(TTY)) {
 		mml_mi(p->u.printname);
 		return;
 	}
@@ -13032,14 +13094,16 @@ mml_tensor(struct atom *p)
 	t = p->u.tensor;
 	// if odd rank then vector
 	if (t->ndim % 2 == 1) {
-		print_str("<mfenced><mtable>");
+		print_str(MML_LP);
+		print_str("<mtable>");
 		n = t->dim[0];
 		for (i = 0; i < n; i++) {
 			print_str("<mtr><mtd>");
 			mml_matrix(t, 1, &k);
 			print_str("</mtd></mtr>");
 		}
-		print_str("</mtable></mfenced>");
+		print_str("</mtable>");
+		print_str(MML_RP);
 	} else
 		mml_matrix(t, 0, &k);
 }
@@ -13055,7 +13119,8 @@ mml_matrix(struct tensor *t, int d, int *k)
 	}
 	ni = t->dim[d];
 	nj = t->dim[d + 1];
-	print_str("<mfenced><mtable>");
+	print_str(MML_LP);
+	print_str("<mtable>");
 	for (i = 0; i < ni; i++) {
 		print_str("<mtr>");
 		for (j = 0; j < nj; j++) {
@@ -13065,7 +13130,8 @@ mml_matrix(struct tensor *t, int d, int *k)
 		}
 		print_str("</mtr>");
 	}
-	print_str("</mtable></mfenced>");
+	print_str("</mtable>");
+	print_str(MML_RP);
 }
 
 void
