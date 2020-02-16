@@ -1,4 +1,4 @@
-/* February 13, 2020
+/* February 16, 2020
 
 To build and run:
 
@@ -959,8 +959,7 @@ void mini_solve(void);
 void run(char *s);
 void check_stack(void);
 void stop(char *s);
-void clear(void);
-void init_globals(void);
+void clear(int init);
 void print_status(void);
 void trace_input(char *s);
 void trace_error(void);
@@ -12190,7 +12189,6 @@ main(int argc, char *argv[])
 		else
 			infile = argv[i];
 	}
-	clear();
 	begin_document();
 	if (infile)
 		run_infile();
@@ -17914,7 +17912,7 @@ run(char *s)
 	trace_ptr0 = s;
 	if (setjmp(stop_return))
 		return;
-	init_globals();
+	clear(0);
 	while (1) {
 		if (iszero(binding[AUTOEXPAND]))
 			expanding = 0;
@@ -17927,7 +17925,7 @@ run(char *s)
 		eval_and_print_result(1);
 		check_stack();
 		if (clear_flag)
-			clear();
+			clear(1);
 	}
 }
 
@@ -17976,11 +17974,29 @@ char *init_script[] = {
 };
 
 void
-clear(void)
+clear(int init)
 {
 	int i, n;
+	stop_flag = 0;
+	draw_flag = 0;
+	clear_flag = 0;
+	tos = 0;
+	tof = 0;
+	p0 = symbol(NIL);
+	p1 = symbol(NIL);
+	p2 = symbol(NIL);
+	p3 = symbol(NIL);
+	p4 = symbol(NIL);
+	p5 = symbol(NIL);
+	p6 = symbol(NIL);
+	p7 = symbol(NIL);
+	p8 = symbol(NIL);
+	p9 = symbol(NIL);
+	if (symtab[0].u.printname && init == 0) {
+		set_binding(symbol(TRACE), zero);
+		return;
+	}
 	init_symbol_table();
-	init_globals();
 	push_integer(0);
 	zero = pop();
 	push_integer(1);
@@ -17999,27 +18015,6 @@ clear(void)
 		pop();
 	}
 	gc();
-}
-
-void
-init_globals(void)
-{
-	stop_flag = 0;
-	draw_flag = 0;
-	clear_flag = 0;
-	tos = 0;
-	tof = 0;
-	p0 = symbol(NIL);
-	p1 = symbol(NIL);
-	p2 = symbol(NIL);
-	p3 = symbol(NIL);
-	p4 = symbol(NIL);
-	p5 = symbol(NIL);
-	p6 = symbol(NIL);
-	p7 = symbol(NIL);
-	p8 = symbol(NIL);
-	p9 = symbol(NIL);
-	set_binding(symbol(TRACE), zero); // start with trace disabled
 }
 
 void
