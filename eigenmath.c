@@ -1,4 +1,4 @@
-/* February 16, 2020
+/* February 17, 2020
 
 To build and run:
 
@@ -276,7 +276,6 @@ enum {
 	METAX,
 	SPECX,
 
-	AUTOEXPAND,
 	LAST,
 	TRACE,
 	TTY,
@@ -786,9 +785,9 @@ void eval_mag(void);
 void mag(void);
 void mag_nib(void);
 int main(int argc, char *argv[]);
-void eval_stdin(void);
+void run_stdin(void);
 void prompt(void);
-void unprompt(void);
+void echo(void);
 void run_infile(void);
 void printbuf(char *s, int color);
 void cmdisplay(void);
@@ -957,9 +956,8 @@ void roots2(void);
 void roots3(void);
 void mini_solve(void);
 void run(char *s);
-void check_stack(void);
 void stop(char *s);
-void clear(int init);
+void init(int level);
 void print_status(void);
 void trace_input(char *s);
 void trace_error(void);
@@ -12193,19 +12191,20 @@ main(int argc, char *argv[])
 	if (infile)
 		run_infile();
 	if (isatty(fileno(stdout)))
-		for (;;)
-			eval_stdin();
+		run_stdin();
 	end_document();
 	return 0;
 }
 
 void
-eval_stdin(void)
+run_stdin(void)
 {
-	prompt();
-	fgets(inbuf, sizeof inbuf, stdin);
-	unprompt();
-	run(inbuf);
+	for (;;) {
+		prompt();
+		fgets(inbuf, sizeof inbuf, stdin);
+		echo();
+		run(inbuf);
+	}
 }
 
 void
@@ -12226,7 +12225,7 @@ prompt(void)
 }
 
 void
-unprompt(void)
+echo(void)
 {
 	switch (doc_type) {
 	case DOC_LATEX:
@@ -12398,12 +12397,7 @@ begin_latex(void)
 	fputs(
 	"\\documentclass[12pt]{article}\n"
 	"\\usepackage{amsmath,amsfonts,amssymb}\n"
-	"\% change margins\n"
-	"\\addtolength{\\oddsidemargin}{-.875in}\n"
-	"\\addtolength{\\evensidemargin}{-.875in}\n"
-	"\\addtolength{\\textwidth}{1.75in}\n"
-	"\\addtolength{\\topmargin}{-.875in}\n"
-	"\\addtolength{\\textheight}{1.75in}\n"
+	"\\usepackage[margin=2cm]{geometry}\n"
 	"\\begin{document}\n\n",
 	stdout);
 }
@@ -17912,30 +17906,18 @@ run(char *s)
 	trace_ptr0 = s;
 	if (setjmp(stop_return))
 		return;
-	clear(0);
-	while (1) {
-		if (iszero(binding[AUTOEXPAND]))
-			expanding = 0;
-		else
-			expanding = 1;
+	init(0);
+	for (;;) {
 		s = scan(s, 0);
 		if (s == NULL)
 			break; // end of input
 		trace_input(s);
 		eval_and_print_result(1);
-		check_stack();
+		if (tos || tof)
+			stop("internal error 1");
 		if (clear_flag)
-			clear(1);
+			init(1);
 	}
-}
-
-void
-check_stack(void)
-{
-	if (tos != 0)
-		stop("stack error");
-	if (tof != 0)
-		stop("frame error");
 }
 
 void
@@ -17960,7 +17942,6 @@ stop(char *s)
 char *init_script[] = {
 	"e=exp(1)",
 	"i=sqrt(-1)",
-	"autoexpand=1",
 	"trange=(-pi,pi)",
 	"xrange=(-10,10)",
 	"yrange=(-10,10)",
@@ -17974,12 +17955,13 @@ char *init_script[] = {
 };
 
 void
-clear(int init)
+init(int level)
 {
 	int i, n;
 	stop_flag = 0;
 	draw_flag = 0;
 	clear_flag = 0;
+	expanding = 1;
 	tos = 0;
 	tof = 0;
 	p0 = symbol(NIL);
@@ -17992,7 +17974,7 @@ clear(int init)
 	p7 = symbol(NIL);
 	p8 = symbol(NIL);
 	p9 = symbol(NIL);
-	if (symtab[0].u.printname && init == 0) {
+	if (symtab[0].u.printname && level < 1) {
 		set_binding(symbol(TRACE), zero);
 		return;
 	}
@@ -20051,7 +20033,6 @@ init_symbol_table(void)
 	std_symbol("$b", METAB);
 	std_symbol("$x", METAX);
 	std_symbol("$X", SPECX);
-	std_symbol("autoexpand", AUTOEXPAND);
 	std_symbol("last", LAST);
 	std_symbol("trace", TRACE);
 	std_symbol("tty", TTY);
