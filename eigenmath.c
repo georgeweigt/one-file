@@ -1,4 +1,4 @@
-/* February 17, 2020
+/* February 22, 2020
 
 To build and run:
 
@@ -692,7 +692,6 @@ void guess(void);
 void eval_hermite(void);
 void hermite(void);
 void hermite_nib(void);
-void hermite2(int n);
 void eval_hilbert(void);
 void hilbert(void);
 void push_zero_matrix(int i, int j);
@@ -9727,54 +9726,37 @@ hermite(void)
 
 #undef X
 #undef N
-#undef Y
 #undef Y1
 #undef Y0
 
 #define X p1
 #define N p2
-#define Y p3
-#define Y1 p4
-#define Y0 p5
+#define Y1 p3
+#define Y0 p4
 
-// uses the recurrence relation H(x,n+1)=2*x*H(x,n)-2*n*H(x,n-1)
+// H(x,n) = 2 x H(x,n - 1) - 2 (n - 1) H(x,n - 2)
 
 void
 hermite_nib(void)
 {
-	int n;
+	int i, n;
 	N = pop();
 	X = pop();
 	push(N);
 	n = pop_integer();
-	if (n < 0) {
+	if (n == ERR) {
 		push_symbol(HERMITE);
 		push(X);
 		push(N);
 		list(3);
 		return;
 	}
-	if (issymbol(X))
-		hermite2(n);
-	else {
-		Y = X;			// do this when X is an expr
-		X = symbol(SPECX);
-		hermite2(n);
-		X = Y;
-		push_symbol(SPECX);
-		push(X);
-		subst();
-		eval();
+	if (n < 0) {
+		push(zero);
+		return;
 	}
-}
-
-void
-hermite2(int n)
-{
-	int i;
-	push_integer(1);
-	push_integer(0);
-	Y1 = pop();
+	push(one);
+	Y1 = zero;
 	for (i = 0; i < n; i++) {
 		Y0 = Y1;
 		Y1 = pop();
