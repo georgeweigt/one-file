@@ -1,10 +1,8 @@
 /* This is a realization of 'Mathematical routines for the NIST prime elliptic curves'
 
-https://apps.nsa.gov/iaarchive/library/ia-guidance/ia-solutions-for-classified/algorithm-guidance/mathematical-routines-for-the-nist-prime-elliptic-curves.cfm
+The main function runs a self test.
 
-The 'main' function runs a self test.
-
-To compile and run:
+To build and run:
 
 	gcc ec-nist.c
 	./a.out
