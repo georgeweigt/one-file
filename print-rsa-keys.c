@@ -61,6 +61,7 @@ int read_key_file(char *filename, struct keyinfo *ki);
 int decode(int c);
 int get_rsa_keys_from_keyinfo(struct keyinfo *ki);
 int get_type_and_length(uint8_t *buf, int end, int *offset, int *type, int *length);
+void print_key_info(struct keyinfo *p);
 void print_field(char *s, uint8_t *buf, int length);
 
 char strbuf[100];
