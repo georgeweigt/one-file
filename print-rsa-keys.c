@@ -57,16 +57,17 @@ struct keyinfo {
 	unsigned char key_data[10000];
 };
 
-int read_key_file(char *filename, char *passphrase, struct keyinfo *ki);
+int read_key_file(char *filename, struct keyinfo *ki);
 int decode(int c);
 int get_rsa_keys_from_keyinfo(struct keyinfo *ki);
 int get_type_and_length(uint8_t *buf, int end, int *offset, int *type, int *length);
+void print_field(char *s, uint8_t *buf, int length);
 
 char strbuf[100];
 struct keyinfo provisioned_ki;
 
 int
-read_key_file(char *filename, char *passphrase, struct keyinfo *ki)
+read_key_file(char *filename, struct keyinfo *ki)
 {
 	int a, b, c, d, k, n, w;
 	char *s;
@@ -80,49 +81,6 @@ read_key_file(char *filename, char *passphrase, struct keyinfo *ki)
 		if (strcmp(strbuf, "-----BEGIN RSA PRIVATE KEY-----\n") == 0)
 			break;
 	}
-#if 0
-	int i;
-	uint8_t iv[16], key[16], expanded_key[272];
-	if (passphrase) { // encrypted key file
-		if (fgets(strbuf, sizeof strbuf, f) == NULL)
-			goto err;
-		if (strcmp(strbuf, "Proc-Type: 4,ENCRYPTED\n") != 0)
-			goto err;
-		if (fgets(strbuf, sizeof strbuf, f) == NULL)
-			goto err;
-		if (strlen(strbuf) != 55)
-			goto err;
-		if (strncmp(strbuf, "DEK-Info: AES-128-CBC,", 22) != 0)
-			goto err;
-		for (i = 0; i < 16; i++) { // parse iv
-			a = strbuf[22 + 2 * i];
-			b = strbuf[23 + 2 * i];
-			if ('0' <= a && a <= '9')
-				a = a - '0';
-			else if ('A' <= a && a <= 'F')
-				a = a - 'A' + 10;
-			else if ('a' <= a && a <= 'f')
-				a = a - 'a' + 10;
-			else
-				goto err;
-			if ('0' <= b && b <= '9')
-				b = b - '0';
-			else if ('A' <= b && b <= 'F')
-				b = b - 'A' + 10;
-			else if ('a' <= b && b <= 'f')
-				b = b - 'a' + 10;
-			else
-				goto err;
-			iv[i] = a << 4 | b;
-		}
-		n = strlen(passphrase);
-		strncpy(strbuf, passphrase, n);
-		memcpy(strbuf + n, iv, 8);
-		md5(strbuf, n + 8, key);
-		if (fgets(strbuf, sizeof strbuf, f) == NULL) // skip blank line
-			goto err;
-	}
-#endif
 	k = 0;
 	for (;;) {
 		if (fgets(strbuf, sizeof strbuf, f) == NULL)
@@ -173,17 +131,6 @@ pad:	if (s[2] == '=') {
 		goto err;
 done:	ki->key_data_length = k;
 	fclose(f);
-#if 0
-	if (passphrase) {
-		if (ki->key_data_length & 0xf)
-			return -1;
-		aes128_decrypt_direct(key, iv, ki->key_data, ki->key_data_length / 16);
-		n = ki->key_data[ki->key_data_length - 1]; // pad format is different from rsa cipher suites
-		ki->key_data_length -= n; // undo pad
-		if (ki->key_data_length < 0)
-			return -1;
-	}
-#endif
 	return 0;
 err:	fclose(f);
 	return -1;
@@ -340,34 +287,28 @@ get_type_and_length(uint8_t *buf, int end, int *offset, int *type, int *length)
 	return 0;
 }
 
-void print_field(char *s, uint8_t *p, int length);
-
 void
 print_key_info(struct keyinfo *p)
 {
 	print_field("modulus", p->key_data + p->modulus_offset, p->modulus_length);
-
 	print_field("public exponent", p->key_data + p->public_exponent_offset, p->public_exponent_length);
 	print_field("private exponent", p->key_data + p->private_exponent_offset, p->private_exponent_length);
-
 	print_field("prime1", p->key_data + p->prime1_offset, p->prime1_length);
 	print_field("prime2", p->key_data + p->prime2_offset, p->prime2_length);
-
 	print_field("exponent1", p->key_data + p->exponent1_offset, p->exponent1_length);
 	print_field("exponent2", p->key_data + p->exponent2_offset, p->exponent2_length);
-
 	print_field("coefficient", p->key_data + p->coefficient_offset, p->coefficient_length);
 }
 
 void
-print_field(char *s, uint8_t *p, int length)
+print_field(char *s, uint8_t *buf, int length)
 {
 	int i;
 
 	printf("%s (%d bytes)\n", s, length);
 
 	for (i = 0; i < length; i++) {
-		printf("%02x", p[i]);
+		printf("%02x", buf[i]);
 		if (i % 16 == 15)
 			printf("\n");
 	}
@@ -383,7 +324,7 @@ main(int argc, char *argv[])
 {
 	int err;
 
-	err = read_key_file("key.pem", NULL, &provisioned_ki);
+	err = read_key_file("key.pem", &provisioned_ki);
 
 	if (err) {
 		printf("key.pem error\n");
