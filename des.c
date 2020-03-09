@@ -1,8 +1,8 @@
 /* This is a realization of the cipher DES.
 
-The "main" function runs a self test.
+The main function runs a self test.
 
-To compile and run:
+To build and run:
 
 	gcc des.c
 	./a.out
@@ -381,16 +381,25 @@ main()
 
 	des_compute_key_schedule(K, key);
 
+	printf("check encrypt\n");
+
 	des_encrypt(a, K);
 
-	printf("%02x%02x%02x%02x%02x%02x%02x%02x\n", a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+//	printf("%02x%02x%02x%02x%02x%02x%02x%02x\n", a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
 
 	if (a[0] == 0x83 && a[1] == 0xa1 && a[2] == 0xe8 && a[3] == 0x14 && a[4] == 0x88 && a[5] == 0x92 && a[6] == 0x53 && a[7] == 0xe0)
 		printf("ok\n");
 	else
 		printf("not ok\n");
 
+	printf("check decrypt\n");
+
 	des_decrypt(a, K);
 
-	printf("%02x%02x%02x%02x%02x%02x%02x%02x\n", a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+//	printf("%02x%02x%02x%02x%02x%02x%02x%02x\n", a[0], a[1], a[2], a[3], a[4], a[5], a[6], a[7]);
+
+	if (a[0] == 0x00 && a[1] == 0x00 && a[2] == 0x00 && a[3] == 0x00 && a[4] == 0x00 && a[5] == 0x00 && a[6] == 0x00 && a[7] == 0x00)
+		printf("ok\n");
+	else
+		printf("not ok\n");
 }
