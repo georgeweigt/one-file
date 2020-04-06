@@ -1,4 +1,4 @@
-/* February 22, 2020
+/* April 6, 2020
 
 To build and run:
 
@@ -15,15 +15,15 @@ Sample scripts are available at www.eigenmath.org
 
 To generate LaTeX output:
 
-        ./eigenmath --latex scriptfilename >foo.tex
+        ./eigenmath --latex scriptfilename | tee foo.tex
 
 To generate MathML output:
 
-        ./eigenmath --mathml scriptfilename >foo.html
+        ./eigenmath --mathml scriptfilename | tee foo.html
 
 To generate MathJax output:
 
-        ./eigenmath --mathjax scriptfilename >foo.html
+        ./eigenmath --mathjax scriptfilename | tee foo.html
 
 MathML and MathJax results look best on Firefox.
 
@@ -478,6 +478,8 @@ int coeff(void);
 void eval_cofactor(void);
 void eval_conj(void);
 void conjugate(void);
+void conjugate_subst(void);
+void conjugate_subst_nib(void);
 void eval_contract(void);
 void contract(void);
 void contract_nib(void);
@@ -2207,29 +2209,36 @@ arg_nib(void)
 {
 	int h, i, n;
 	p1 = pop();
-	if (isnegativenumber(p1)) {
-		if (isdouble(p1))
-			push_double(M_PI);
-		else
-			push(symbol(PI));
-		negate();
+	if (isrational(p1)) {
+		if (p1->sign == MPLUS)
+			push(zero);
+		else {
+			push_symbol(PI);
+			negate();
+		}
 		return;
 	}
+	if (isdouble(p1)) {
+		if (p1->u.d >= 0.0)
+			push_double(0.0);
+		else
+			push_double(-M_PI);
+		return;
+	}
+	// (-1) ^ expr
 	if (car(p1) == symbol(POWER) && equaln(cadr(p1), -1)) {
-		// -1 to a power
 		push(symbol(PI));
 		push(caddr(p1));
 		multiply();
 		return;
 	}
+	// e ^ expr
 	if (car(p1) == symbol(POWER) && cadr(p1) == symbol(EXP1)) {
-		// exponential
 		push(caddr(p1));
 		imag();
 		return;
 	}
 	if (car(p1) == symbol(MULTIPLY)) {
-		// product of factors
 		h = tos;
 		p1 = cdr(p1);
 		while (iscons(p1)) {
@@ -2247,7 +2256,6 @@ arg_nib(void)
 		return;
 	}
 	if (car(p1) == symbol(ADD)) {
-		// sum of terms
 		push(p1);
 		rect(); // convert polar and clock forms
 		p1 = pop();
@@ -2262,11 +2270,7 @@ arg_nib(void)
 		arctan();
 		return;
 	}
-	// pure real
-	if (isdouble(p1))
-		push_double(0.0);
-	else
-		push(zero);
+	push(zero);
 }
 
 void
@@ -4090,11 +4094,58 @@ eval_conj(void)
 void
 conjugate(void)
 {
-	push(imaginaryunit);
-	push(imaginaryunit);
-	negate();
-	subst();
+	conjugate_subst();
 	eval();
+}
+
+void
+conjugate_subst(void)
+{
+	save();
+	conjugate_subst_nib();
+	restore();
+}
+
+void
+conjugate_subst_nib(void)
+{
+	int h, i, n;
+	p1 = pop();
+	if (istensor(p1)) {
+		push(p1);
+		copy_tensor();
+		p1 = pop();
+		n = p1->u.tensor->nelem;
+		for (i = 0; i < n; i++) {
+			push(p1->u.tensor->elem[i]);
+			conjugate_subst();
+			p1->u.tensor->elem[i] = pop();
+		}
+		push(p1);
+		return;
+	}
+	// (-1) ^ expr
+	if (car(p1) == symbol(POWER) && isminusone(cadr(p1))) {
+		push_symbol(POWER);
+		push(minusone);
+		push(caddr(p1));
+		negate();
+		list(3);
+		return;
+	}
+	if (iscons(p1)) {
+		h = tos;
+		push(car(p1));
+		p1 = cdr(p1);
+		while (iscons(p1)) {
+			push(car(p1));
+			conjugate_subst();
+			p1 = cdr(p1);
+		}
+		list(tos - h);
+		return;
+	}
+	push(p1);
 }
 
 void
