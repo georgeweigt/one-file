@@ -1215,7 +1215,6 @@ absval_tensor(void)
 	push_rational(1, 2);
 	power();
 	simplify();
-	eval();
 }
 
 void
@@ -1682,10 +1681,6 @@ arccos_nib(void)
 		multiply();
 		return;
 	}
-	if (car(p1) == symbol(COS)) {
-		push(cadr(p1));
-		return;
-	}
 	// if p1 == 1/sqrt(2) then return 1/4*pi (45 degrees)
 	if (isoneoversqrttwo(p1)) {
 		push_rational(1, 4);
@@ -1833,10 +1828,6 @@ arcsin_nib(void)
 		add();
 		logarithm();
 		multiply();
-		return;
-	}
-	if (car(p1) == symbol(SIN)) {
-		push(cadr(p1));
 		return;
 	}
 	// if p1 == 1/sqrt(2) then return 1/4*pi (45 degrees)
@@ -4681,10 +4672,6 @@ cosine_nib(void)
 	}
 	if (car(p1) == symbol(ADD)) {
 		cosine_of_sum();
-		return;
-	}
-	if (car(p1) == symbol(ARCCOS)) {
-		push(cadr(p1));
 		return;
 	}
 	// cos(arctan(y,x)) = x (x^2 + y^2)^(-1/2)
@@ -19502,10 +19489,6 @@ sine_nib(void)
 	}
 	if (car(p1) == symbol(ADD)) {
 		sine_of_sum();
-		return;
-	}
-	if (car(p1) == symbol(ARCSIN)) {
-		push(cadr(p1));
 		return;
 	}
 	// sin(arctan(y,x)) = y (x^2 + y^2)(-1/2)
