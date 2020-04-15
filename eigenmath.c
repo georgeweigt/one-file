@@ -1,4 +1,4 @@
-/* April 6, 2020
+/* April 15, 2020
 
 To build and run:
 
@@ -357,6 +357,7 @@ extern int primetab[MAXPRIMETAB];
 
 void eval_abs(void);
 void absval(void);
+void absval_nib(void);
 void absval_tensor(void);
 void eval_add(void);
 void add(void);
@@ -1145,19 +1146,24 @@ eval_abs(void)
 void
 absval(void)
 {
-	int h;
 	save();
+	absval_nib();
+	restore();
+}
+
+void
+absval_nib(void)
+{
+	int h;
 	p1 = pop();
 	if (istensor(p1)) {
 		absval_tensor();
-		restore();
 		return;
 	}
 	if (isnum(p1)) {
 		push(p1);
 		if (isnegativenumber(p1))
 			negate();
-		restore();
 		return;
 	}
 	if (iscomplexnumber(p1)) {
@@ -1167,7 +1173,6 @@ absval(void)
 		multiply();
 		push_rational(1, 2);
 		power();
-		restore();
 		return;
 	}
 	// abs(1/a) evaluates to 1/abs(a)
@@ -1176,7 +1181,6 @@ absval(void)
 		reciprocate();
 		absval();
 		reciprocate();
-		restore();
 		return;
 	}
 	// abs(a*b) evaluates to abs(a)*abs(b)
@@ -1189,7 +1193,6 @@ absval(void)
 			p1 = cdr(p1);
 		}
 		multiply_factors(tos - h);
-		restore();
 		return;
 	}
 	if (isnegativeterm(p1) || (car(p1) == symbol(ADD) && isnegativeterm(cadr(p1)))) {
@@ -1200,7 +1203,6 @@ absval(void)
 	push_symbol(ABS);
 	push(p1);
 	list(2);
-	restore();
 }
 
 void
@@ -17320,48 +17322,46 @@ print_char(int c)
 	outbuf[outbuf_index++] = c;
 }
 
-// 'product' function
-
-#undef I
-#undef X
-
-#define I p5
-#define X p6
-
 void
 eval_product(void)
 {
 	int i, j, k;
 	// 1st arg (quoted)
-	X = cadr(p1);
-	if (!issymbol(X))
+	p1 = cdr(p1);
+	p2 = car(p1);
+	if (!issymbol(p2))
 		stop("product: 1st arg?");
 	// 2nd arg
-	push(caddr(p1));
+	p1 = cdr(p1);
+	push(car(p1));
 	eval();
 	j = pop_integer();
 	if (j == ERR)
 		stop("product: 2nd arg?");
 	// 3rd arg
-	push(cadddr(p1));
+	p1 = cdr(p1);
+	push(car(p1));
 	eval();
 	k = pop_integer();
 	if (k == ERR)
 		stop("product: 3rd arg?");
+	if (k - j < 0) {
+		push(one);
+		return;
+	}
 	// 4th arg
-	p1 = caddddr(p1);
-	push_binding(X);
-	push_integer(1);
+	p1 = cadr(p1);
+	push_binding(p2);
 	for (i = j; i <= k; i++) {
 		push_integer(i);
-		I = pop();
-		set_binding(X, I);
+		p3 = pop();
+		set_binding(p2, p3);
 		push(p1);
 		eval();
-		multiply();
 	}
+	multiply_factors(k - j + 1);
 	p1 = pop();
-	pop_binding(X);
+	pop_binding(p2);
 	push(p1);
 }
 
@@ -19755,47 +19755,46 @@ push_string(char *s)
 	string_count++;
 }
 
-// 'sum' function
-
-#undef I
-#undef X
-
-#define I p5
-#define X p6
-
 void
 eval_sum(void)
 {
 	int i, j, k;
 	// 1st arg (quoted)
-	X = cadr(p1);
-	if (!issymbol(X))
+	p1 = cdr(p1);
+	p2 = car(p1);
+	if (!issymbol(p2))
 		stop("sum: 1st arg?");
 	// 2nd arg
-	push(caddr(p1));
+	p1 = cdr(p1);
+	push(car(p1));
 	eval();
 	j = pop_integer();
 	if (j == ERR)
 		stop("sum: 2nd arg?");
 	// 3rd arg
-	push(cadddr(p1));
+	p1 = cdr(p1);
+	push(car(p1));
 	eval();
 	k = pop_integer();
 	if (k == ERR)
 		stop("sum: 3rd arg?");
+	if (k - j < 0) {
+		push(zero);
+		return;
+	}
 	// 4th arg
-	p1 = caddddr(p1);
-	push_binding(X);
-	push_integer(0);
+	p1 = cadr(p1);
+	push_binding(p2);
 	for (i = j; i <= k; i++) {
 		push_integer(i);
-		set_binding(X, pop());
+		p3 = pop();
+		set_binding(p2, p3);
 		push(p1);
 		eval();
-		add();
 	}
+	add_terms(k - j + 1);
 	p1 = pop();
-	pop_binding(X);
+	pop_binding(p2);
 	push(p1);
 }
 
