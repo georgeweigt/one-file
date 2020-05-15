@@ -1,4 +1,4 @@
-/* April 15, 2020
+/* May 15, 2020
 
 To build and run:
 
@@ -402,11 +402,6 @@ void arg(void);
 void arg_nib(void);
 void eval_atomize(void);
 void atomize(void);
-void bake(void);
-void bake_nib(void);
-void polyform(void);
-void bake_poly(void);
-void bake_poly_term(int k);
 void eval_besselj(void);
 void besselj(void);
 void besselj_nib(void);
@@ -1023,6 +1018,8 @@ void push(struct atom *p);
 struct atom * pop(void);
 void save(void);
 void restore(void);
+void save_binding(struct atom *p);
+void restore_binding(struct atom *p);
 void swap(void);
 void push_string(char *s);
 void eval_sum(void);
@@ -1034,8 +1031,6 @@ void set_binding_and_arglist(struct atom *p, struct atom *b, struct atom *a);
 struct atom * get_binding(struct atom *p);
 struct atom * get_arglist(struct atom *p);
 int symnum(struct atom *p);
-void push_binding(struct atom *p);
-void pop_binding(struct atom *p);
 void init_symbol_table(void);
 void eval_tan(void);
 void tangent(void);
@@ -1074,6 +1069,9 @@ int f_equals_a(int h);
 void decomp_nib(void);
 void decomp_sum(void);
 void decomp_product(void);
+void transform_terms(void);
+void transform_terms_nib(void);
+int transform_sort_func(const void *q1, const void *q2);
 void eval_transpose(void);
 void transpose(void);
 void transpose_nib(void);
@@ -2296,160 +2294,6 @@ atomize(void)
 		p1 = cdr(p1);
 	}
 	push(p2);
-}
-
-// reorganize polynomial expressions so the highest power appears first
-
-void
-bake(void)
-{
-	expanding++;
-	save();
-	bake_nib();
-	restore();
-	expanding--;
-}
-
-void
-bake_nib(void)
-{
-	int h, s, t, x, y, z;
-	p1 = pop();
-	if (length(p1) > 6) { // too slow for large polynomials
-		push(p1);
-		return;
-	}
-	s = ispoly(p1, symbol(SYMBOL_S));
-	t = ispoly(p1, symbol(SYMBOL_T));
-	x = ispoly(p1, symbol(SYMBOL_X));
-	y = ispoly(p1, symbol(SYMBOL_Y));
-	z = ispoly(p1, symbol(SYMBOL_Z));
-	if (s == 1 && t == 0 && x == 0 && y == 0 && z == 0) {
-		p2 = symbol(SYMBOL_S);
-		bake_poly();
-	} else if (s == 0 && t == 1 && x == 0 && y == 0 && z == 0) {
-		p2 = symbol(SYMBOL_T);
-		bake_poly();
-	} else if (s == 0 && t == 0 && x == 1 && y == 0 && z == 0) {
-		p2 = symbol(SYMBOL_X);
-		bake_poly();
-	} else if (s == 0 && t == 0 && x == 0 && y == 1 && z == 0) {
-		p2 = symbol(SYMBOL_Y);
-		bake_poly();
-	} else if (s == 0 && t == 0 && x == 0 && y == 0 && z == 1) {
-		p2 = symbol(SYMBOL_Z);
-		bake_poly();
-	} else if (iscons(p1)) {
-		h = tos;
-		push(car(p1));
-		p1 = cdr(p1);
-		while (iscons(p1)) {
-			push(car(p1));
-			bake();
-			p1 = cdr(p1);
-		}
-		list(tos - h);
-	} else
-		push(p1);
-}
-
-void
-polyform(void)
-{
-	int h;
-	save();
-	p2 = pop();
-	p1 = pop();
-	if (ispoly(p1, p2))
-		bake_poly();
-	else if (iscons(p1)) {
-		h = tos;
-		push(car(p1));
-		p1 = cdr(p1);
-		while (iscons(p1)) {
-			push(car(p1));
-			push(p2);
-			polyform();
-			p1 = cdr(p1);
-		}
-		list(tos - h);
-	} else
-		push(p1);
-	restore();
-}
-
-void
-bake_poly(void)
-{
-	int h, i, k, n;
-	struct atom **a;
-	a = stack + tos;
-	push(p1);		// p(x)
-	push(p2);		// x
-	k = coeff();
-	h = tos;
-	for (i = k - 1; i >= 0; i--) {
-		p1 = a[i];
-		bake_poly_term(i);
-	}
-	n = tos - h;
-	if (n > 1) {
-		list(n);
-		push_symbol(ADD);
-		swap();
-		cons();
-	}
-	p1 = pop();
-	tos -= k;
-	push(p1);
-}
-
-// p1 points to coefficient of p2 ^ k
-
-void
-bake_poly_term(int k)
-{
-	int h, n;
-	if (iszero(p1))
-		return;
-	// constant term?
-	if (k == 0) {
-		if (car(p1) == symbol(ADD)) {
-			p1 = cdr(p1);
-			while (iscons(p1)) {
-				push(car(p1));
-				p1 = cdr(p1);
-			}
-		} else
-			push(p1);
-		return;
-	}
-	h = tos;
-	// coefficient
-	if (car(p1) == symbol(MULTIPLY)) {
-		p1 = cdr(p1);
-		while (iscons(p1)) {
-			push(car(p1));
-			p1 = cdr(p1);
-		}
-	} else if (!equaln(p1, 1))
-		push(p1);
-	// x ^ k
-	if (k == 1)
-		push(p2);
-	else {
-		push_symbol(POWER);
-		push(p2);
-		push_integer(k);
-		list(3);
-	}
-	n = tos - h;
-	if (n > 1) {
-		list(n);
-		push_symbol(MULTIPLY);
-		swap();
-		cons();
-	}
 }
 
 /* Bessel J function
@@ -7598,7 +7442,6 @@ erf_symbolic_nib(void)
 	push_symbol(ERF);
 	push(p1);
 	list(2);
-	return;
 }
 
 void
@@ -9427,50 +9270,45 @@ floor_nib(void)
 	}
 }
 
-// 'for' function
-
-#undef I
-#undef X
-
-#define I p5
-#define X p6
-
 void
 eval_for(void)
 {
 	int i, j, k;
 	// 1st arg (quoted)
-	X = cadr(p1);
-	if (!issymbol(X))
+	p1 = cdr(p1);
+	p2 = car(p1);
+	if (!issymbol(p2))
 		stop("for: 1st arg?");
 	// 2nd arg
-	push(caddr(p1));
+	p1 = cdr(p1);
+	push(car(p1));
 	eval();
 	j = pop_integer();
 	if (j == ERR)
 		stop("for: 2nd arg?");
 	// 3rd arg
-	push(cadddr(p1));
+	p1 = cdr(p1);
+	push(car(p1));
 	eval();
 	k = pop_integer();
 	if (k == ERR)
 		stop("for: 3rd arg?");
 	// remaining args
-	p1 = cddddr(p1);
-	push_binding(X);
+	p1 = cdr(p1);
+	save_binding(p2);
 	for (i = j; i <= k; i++) {
 		push_integer(i);
-		I = pop();
-		set_binding(X, I);
-		p2 = p1;
-		while (iscons(p2)) {
-			push(car(p2));
+		p3 = pop();
+		set_binding(p2, p3);
+		p3 = p1;
+		while (iscons(p3)) {
+			push(car(p3));
 			eval();
 			pop();
-			p2 = cdr(p2);
+			p3 = cdr(p3);
 		}
 	}
-	pop_binding(X);
+	restore_binding(p2);
 	// return value
 	push_symbol(NIL);
 }
@@ -14305,9 +14143,8 @@ partition(void)
 	save();
 	p2 = pop();
 	p1 = pop();
-	push_integer(1);
-	p3 = pop();
-	p4 = p3;
+	p3 = one;
+	p4 = one;
 	p1 = cdr(p1);
 	while (iscons(p1)) {
 		if (find(car(p1), p2)) {
@@ -17351,7 +17188,7 @@ eval_product(void)
 	}
 	// 4th arg
 	p1 = cadr(p1);
-	push_binding(p2);
+	save_binding(p2);
 	for (i = j; i <= k; i++) {
 		push_integer(i);
 		p3 = pop();
@@ -17360,9 +17197,7 @@ eval_product(void)
 		eval();
 	}
 	multiply_factors(k - j + 1);
-	p1 = pop();
-	pop_binding(p2);
-	push(p1);
+	restore_binding(p2);
 }
 
 void
@@ -19698,7 +19533,7 @@ save(void)
 	if (tof < 0 || tof > FRAMESIZE)
 		stop("frame error 1");
 	if (tof + 10 > FRAMESIZE)
-		stop("out of memory, perhaps due to a circular definition");
+		stop("frame error, circular definition?");
 	frame[tof + 0] = p0;
 	frame[tof + 1] = p1;
 	frame[tof + 2] = p2;
@@ -19730,6 +19565,30 @@ restore(void)
 	p7 = frame[tof + 7];
 	p8 = frame[tof + 8];
 	p9 = frame[tof + 9];
+}
+
+void
+save_binding(struct atom *p)
+{
+	if (tof < 0 || tof > FRAMESIZE)
+		stop("frame error 3");
+	if (tof + 2 > FRAMESIZE)
+		stop("frame error, circular definition?");
+	frame[tof + 0] = binding[p - symtab];
+	frame[tof + 1] = arglist[p - symtab];
+	tof += 2;
+	if (tof > max_frame)
+		max_frame = tof;
+}
+
+void
+restore_binding(struct atom *p)
+{
+	if (tof < 2 || tof > FRAMESIZE)
+		stop("frame error 4");
+	tof -= 2;
+	binding[p - symtab] = frame[tof + 0];
+	arglist[p - symtab] = frame[tof + 1];
 }
 
 void
@@ -19784,7 +19643,7 @@ eval_sum(void)
 	}
 	// 4th arg
 	p1 = cadr(p1);
-	push_binding(p2);
+	save_binding(p2);
 	for (i = j; i <= k; i++) {
 		push_integer(i);
 		p3 = pop();
@@ -19793,9 +19652,7 @@ eval_sum(void)
 		eval();
 	}
 	add_terms(k - j + 1);
-	p1 = pop();
-	pop_binding(p2);
-	push(p1);
+	restore_binding(p2);
 }
 
 // put symbol s at index n
@@ -19884,24 +19741,6 @@ symnum(struct atom *p)
 	if (p->k != SYM)
 		stop("symbol error");
 	return (int) (p - symtab);
-}
-
-void
-push_binding(struct atom *p)
-{
-	if (p->k != SYM)
-		stop("symbol expected");
-	push(binding[p - symtab]);
-	push(arglist[p - symtab]);
-}
-
-void
-pop_binding(struct atom *p)
-{
-	if (p->k != SYM)
-		stop("symbol expected");
-	arglist[p - symtab] = pop();
-	binding[p - symtab] = pop();
 }
 
 void
@@ -20900,10 +20739,10 @@ transform(char **s)
 	set_binding(symbol(METAX), X);
 	// put constants in F(X) on the stack
 	h = tos;
-	push_integer(1);
+	push(one);
 	push(F);
 	push(X);
-	polyform(); // collect coefficients of x, x^2, etc.
+	transform_terms(); // collect coefficients of x, x^2, etc.
 	push(X);
 	decomp_nib();
 	while (*s) {
@@ -21055,6 +20894,98 @@ decomp_product(void)
 	}
 	if (tos - h)
 		multiply_factors(tos - h);
+}
+
+// for example,  a x + b x  ->  (a + b) x
+
+void
+transform_terms(void)
+{
+	save();
+	transform_terms_nib();
+	restore();
+}
+
+void
+transform_terms_nib(void)
+{
+	int h, i, j, n;
+	struct atom **s;
+	p2 = pop(); // x
+	p1 = pop(); // expr
+	if (!iscons(p1)) {
+		push(p1);
+		return;
+	}
+	h = tos;
+	s = stack + tos;
+	// depth first
+	push(car(p1));
+	p3 = cdr(p1);
+	while (iscons(p3)) {
+		push(car(p3));
+		push(p2);
+		transform_terms();
+		p3 = cdr(p3);
+	}
+	list(tos - h);
+	p1 = pop();
+	if (car(p1) != symbol(ADD)) {
+		push(p1);
+		return;
+	}
+	// partition terms
+	p3 = cdr(p1);
+	while (iscons(p3)) {
+		p4 = car(p3);
+		if (car(p4) == symbol(MULTIPLY)) {
+			push(p4);
+			push(p2);
+			partition(); // pushes const part then pushes var part
+		} else if (find(p4, p2)) {
+			push(one); // const part
+			push(p4); // var part
+		} else {
+			push(p4); // const part
+			push(one); // var part
+		}
+		p3 = cdr(p3);
+	}
+	// sort by var part
+	n = tos - h;
+	qsort(s, n / 2, 2 * sizeof (struct atom *), transform_sort_func);
+	// combine const parts of matching var parts
+	for (i = 0; i < n - 2; i += 2) {
+		if (equal(s[i + 1], s[i + 3])) {
+			push(s[0]);
+			push(s[2]);
+			add();
+			s[0] = pop();
+			for (j = i + 2; j < n; j++)
+				s[j] = s[j + 2];
+			n -= 2;
+			tos -= 2;
+			i -= 2; // use the same index again
+		}
+	}
+	// combine all the parts
+	n = tos - h;
+	expanding = 0;
+	for (i = 0; i < n; i += 2) {
+		push(s[i]); // const part
+		push(s[i + 1]); // var part
+		multiply();
+		s[i / 2] = pop();
+	}
+	tos -= n / 2;
+	add_terms(tos - h);
+	expanding = 1;
+}
+
+int
+transform_sort_func(const void *q1, const void *q2)
+{
+	return cmp_terms(((struct atom **) q1)[1], ((struct atom **) q2)[1]);
 }
 
 void
@@ -21262,23 +21193,21 @@ rewrite_nib(void)
 void
 eval_zero(void)
 {
-	int i, k[MAXDIM], m, n;
+	int dim[MAXDIM], i, m, n;
 	m = 1;
 	n = 0;
-	p2 = cdr(p1);
-	while (iscons(p2)) {
+	p1 = cdr(p1);
+	while (iscons(p1)) {
 		if (n == MAXDIM)
-			stop("rank exceeds max");
-		push(car(p2));
+			stop("zero: rank exceeds max");
+		push(car(p1));
 		eval();
 		i = pop_integer();
-		if (i < 2) {
-			push(zero);
-			return;
-		}
+		if (i == ERR || i < 2)
+			stop("zero: dimension error");
 		m *= i;
-		k[n++] = i;
-		p2 = cdr(p2);
+		dim[n++] = i;
+		p1 = cdr(p1);
 	}
 	if (n == 0) {
 		push(zero);
@@ -21287,6 +21216,6 @@ eval_zero(void)
 	p1 = alloc_tensor(m);
 	p1->u.tensor->ndim = n;
 	for (i = 0; i < n; i++)
-		p1->u.tensor->dim[i] = k[i];
+		p1->u.tensor->dim[i] = dim[i];
 	push(p1);
 }
