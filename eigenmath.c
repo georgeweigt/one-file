@@ -1064,7 +1064,7 @@ void eval_not(void);
 void eval_and(void);
 void eval_or(void);
 int cmp_args(void);
-void transform(char **s);
+void transform(void);
 int f_equals_a(int h);
 void decomp_nib(void);
 void decomp_sum(void);
@@ -9955,66 +9955,52 @@ void
 integral(void)
 {
 	save();
-	p2 = pop();
-	p1 = pop();
+	p2 = pop(); // x
+	p1 = pop(); // f(x)
 	if (car(p1) == symbol(ADD))
 		integral_of_sum();
 	else if (car(p1) == symbol(MULTIPLY))
 		integral_of_product();
 	else
 		integral_of_form();
-	p1 = pop();
-	if (find(p1, symbol(INTEGRAL)))
-		stop("integral could not find a solution");
-	push(p1);
-	eval();		// normalize the result
 	restore();
 }
 
 void
 integral_of_sum(void)
 {
-	p1 = cdr(p1);
-	push(car(p1));
-	push(p2);
-	integral();
+	int h = tos;
 	p1 = cdr(p1);
 	while (iscons(p1)) {
 		push(car(p1));
 		push(p2);
 		integral();
-		add();
 		p1 = cdr(p1);
 	}
+	add_terms(tos - h);
 }
 
 void
 integral_of_product(void)
 {
-	push(p1);
-	push(p2);
-	partition();
-	p1 = pop();			// pop variable part
+	push(p1); // f(x)
+	push(p2); // x
+	partition(); // pushes const part, then pushes var part
+	p1 = pop(); // pop var part
 	integral_of_form();
-	multiply();			// multiply constant part
+	multiply(); // multiply by const part
 }
-
-extern char *itab[];
 
 void
 integral_of_form(void)
 {
+	push(p1); // f(x)
+	push(p2); // x
+	transform();
+	p1 = pop();
+	if (p1 == symbol(NIL))
+		stop("integral could not find a solution");
 	push(p1);
-	push(p2);
-	transform(itab);
-	p3 = pop();
-	if (p3 == symbol(NIL)) {
-		push_symbol(INTEGRAL);
-		push(p1);
-		push(p2);
-		list(3);
-	} else
-		push(p3);
 }
 
 void
@@ -20696,8 +20682,6 @@ cmp_args(void)
 
 The expression and free variable are on the stack.
 
-The argument s is a null terminated list of transform rules.
-
 Internally, the following symbols are used:
 
 	F	input expression
@@ -20726,16 +20710,17 @@ Internally, the following symbols are used:
 #define C p7
 
 void
-transform(char **s)
+transform(void)
 {
 	int h;
+	char **s;
 	save();
 	X = pop();
 	F = pop();
 	// save symbol context in case eval(B) below calls transform
-	push(get_binding(symbol(METAA)));
-	push(get_binding(symbol(METAB)));
-	push(get_binding(symbol(METAX)));
+	save_binding(symbol(METAA));
+	save_binding(symbol(METAB));
+	save_binding(symbol(METAX));
 	set_binding(symbol(METAX), X);
 	// put constants in F(X) on the stack
 	h = tos;
@@ -20745,6 +20730,7 @@ transform(char **s)
 	transform_terms(); // collect coefficients of x, x^2, etc.
 	push(X);
 	decomp_nib();
+	s = itab;
 	while (*s) {
 		scan(*s, 1);
 		p1 = pop();
@@ -20755,17 +20741,15 @@ transform(char **s)
 			break;
 		s++;
 	}
-	tos = h;
+	tos = h; // pop all
 	if (*s) {
 		push(B);
 		eval();
-		p1 = pop();
 	} else
-		p1 = symbol(NIL);
-	set_binding(symbol(METAX), pop());
-	set_binding(symbol(METAB), pop());
-	set_binding(symbol(METAA), pop());
-	push(p1);
+		push_symbol(NIL);
+	restore_binding(symbol(METAX));
+	restore_binding(symbol(METAB));
+	restore_binding(symbol(METAA));
 	restore();
 }
 
