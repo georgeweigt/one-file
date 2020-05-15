@@ -9997,10 +9997,6 @@ integral_of_form(void)
 	push(p1); // f(x)
 	push(p2); // x
 	transform();
-	p1 = pop();
-	if (p1 == symbol(NIL))
-		stop("integral could not find a solution");
-	push(p1);
 }
 
 void
@@ -20731,22 +20727,20 @@ transform(void)
 	push(X);
 	decomp_nib();
 	s = itab;
-	while (*s) {
-		scan(*s, 1);
+	for (;;) {
+		if (*s == NULL)
+			stop("integral could not find a solution");
+		scan(*s++, 1);
 		p1 = pop();
 		A = cadr(p1);
 		B = caddr(p1);
 		C = cdddr(p1);
 		if (f_equals_a(h))
 			break;
-		s++;
 	}
 	tos = h; // pop all
-	if (*s) {
-		push(B);
-		eval();
-	} else
-		push_symbol(NIL);
+	push(B);
+	eval();
 	restore_binding(symbol(METAX));
 	restore_binding(symbol(METAB));
 	restore_binding(symbol(METAA));
