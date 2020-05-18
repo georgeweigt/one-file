@@ -1,4 +1,4 @@
-/* May 16, 2020
+/* May 18, 2020
 
 To build and run:
 
@@ -312,7 +312,6 @@ struct tensor {
 #define istensor(p) ((p)->k == TENSOR)
 #define issymbol(p) ((p)->k == SYM)
 #define iskeyword(p) ((p)->k == SYM && (p) - symtab < MARK1)
-#define isadd(p) (car(p) == symbol(ADD))
 
 #define car(p) (iscons(p) ? (p)->u.cons.car : symbol(NIL))
 #define cdr(p) (iscons(p) ? (p)->u.cons.cdr : symbol(NIL))
@@ -584,10 +583,6 @@ void fill_buf(void);
 void emit_tensor(struct atom *p);
 void emit_flat_tensor(struct atom *p);
 void emit_tensor_inner(struct atom *p, int j, int *k);
-void distill(void);
-void distill_nib(void);
-void distill_sum(void);
-void distill_product(void);
 void divisors(void);
 void divisors_onstack(void);
 void gen(int h, int k);
@@ -707,7 +702,7 @@ void integral(void);
 void integral_of_sum(void);
 void integral_of_product(void);
 void integral_of_form(void);
-int f_equals_a(int h);
+int find_integral(int h);
 void decomp(void);
 void decomp_nib(void);
 void decomp_sum(void);
@@ -5036,7 +5031,7 @@ d_scalar_scalar_1(void)
 		push(zero);
 		return;
 	}
-	if (isadd(p1)) {
+	if (car(p1) == symbol(ADD)) {
 		dsum();
 		return;
 	}
@@ -6672,109 +6667,6 @@ emit_tensor_inner(struct atom *p, int j, int *k)
 			emit_char(',');
 	}
 	emit_char(')');
-}
-
-//	take expr and push all constant subexpr
-
-//	p1	expr
-
-//	p2	independent variable (like x)
-
-void
-distill(void)
-{
-	save();
-	distill_nib();
-	restore();
-}
-
-void
-distill_nib(void)
-{
-	p2 = pop();
-	p1 = pop();
-	// is the entire expression constant?
-	if (find(p1, p2) == 0) {
-		push(p1);
-		//push(p1);	// may need later for pushing both +a, -a
-		//negate();
-		return;
-	}
-	// sum?
-	if (isadd(p1)) {
-		distill_sum();
-		return;
-	}
-	// product?
-	if (car(p1) == symbol(MULTIPLY)) {
-		distill_product();
-		return;
-	}
-	// naive distill if not sum or product
-	p3 = cdr(p1);
-	while (iscons(p3)) {
-		push(car(p3));
-		push(p2);
-		distill();
-		p3 = cdr(p3);
-	}
-}
-
-void
-distill_sum(void)
-{
-	int h;
-	// distill terms involving x
-	p3 = cdr(p1);
-	while (iscons(p3)) {
-		if (find(car(p3), p2)) {
-			push(car(p3));
-			push(p2);
-			distill();
-		}
-		p3 = cdr(p3);
-	}
-	// add together all constant terms
-	h = tos;
-	p3 = cdr(p1);
-	while (iscons(p3)) {
-		if (find(car(p3), p2) == 0)
-			push(car(p3));
-		p3 = cdr(p3);
-	}
-	if (tos - h) {
-		add_terms(tos - h);
-		p3 = pop();
-		push(p3);
-		push(p3);
-		negate();	// need both +a, -a for some integrals
-	}
-}
-
-void
-distill_product(void)
-{
-	int h;
-	// distill factors involving x
-	p3 = cdr(p1);
-	while (iscons(p3)) {
-		if (find(car(p3), p2)) {
-			push(car(p3));
-			push(p2);
-			distill();
-		}
-		p3 = cdr(p3);
-	}
-	// multiply together all constant factors
-	h = tos;
-	p3 = cdr(p1);
-	while (iscons(p3)) {
-		if (find(car(p3), p2) == 0)
-			push(car(p3));
-		p3 = cdr(p3);
-	}
-	if (tos - h)
-		multiply_factors(tos - h);
 }
 
 //	Generate all divisors of a term
@@ -9918,9 +9810,9 @@ char *itab[] = {
 	"log(x)",
 	"1",
 
-	"x^a",
-	"x^(a + 1) / (a + 1)",
-	"test(a = -1,0,1)",
+	"x^a",			// integrand
+	"x^(a + 1) / (a + 1)",	// answer
+	"not(a = -1)",		// condition
 
 	"exp(a x)",
 	"exp(a x) / a",
@@ -10606,14 +10498,14 @@ eval_integral(void)
 
 #undef F
 #undef X
+#undef I
 #undef A
-#undef B
 #undef C
 
 #define F p3
 #define X p4
-#define A p5
-#define B p6
+#define I p5
+#define A p6
 #define C p7
 
 void
@@ -10661,7 +10553,7 @@ integral_of_form(void)
 {
 	int h;
 	char **s;
-	// save bindings in case eval(B) calls integral
+	// save bindings in case eval(A) calls integral
 	save_binding(symbol(METAA));
 	save_binding(symbol(METAB));
 	save_binding(symbol(METAX));
@@ -10677,41 +10569,41 @@ integral_of_form(void)
 	s = itab;
 	for (;;) {
 		if (*s == NULL)
-			stop("integral could not find a solution");
-		scan(*s++, 1);
+			stop("integral: could not find a solution");
+		scan(*s++, 1); // integrand
+		I = pop();
+		scan(*s++, 1); // answer
 		A = pop();
-		scan(*s++, 1);
-		B = pop();
-		scan(*s++, 1);
+		scan(*s++, 1); // condition
 		C = pop();
-		if (f_equals_a(h))
+		if (find_integral(h))
 			break;
 	}
 	tos = h; // pop all
-	push(B);
+	push(A); // answer
 	eval();
 	restore_binding(symbol(METAX));
 	restore_binding(symbol(METAB));
 	restore_binding(symbol(METAA));
 }
 
-// search for a METAA and METAB such that F = A
+// find constants such that F = I
 
 int
-f_equals_a(int h)
+find_integral(int h)
 {
 	int i, j;
 	for (i = h; i < tos; i++) {
 		set_binding(symbol(METAA), stack[i]);
 		for (j = h; j < tos; j++) {
 			set_binding(symbol(METAB), stack[j]);
-			push(C);			// are conditions ok?
+			push(C);			// condition ok?
 			eval();
 			p1 = pop();
 			if (iszero(p1))
 				continue;		// no, go to next j
-			push(F);			// F = A?
-			push(A);
+			push(F);			// F = I?
+			push(I);
 			eval();
 			subtract();
 			p1 = pop();
@@ -17110,7 +17002,7 @@ print_subexpr(struct atom *p)
 void
 print_expr(struct atom *p)
 {
-	if (isadd(p)) {
+	if (car(p) == symbol(ADD)) {
 		p = cdr(p);
 		if (sign_of_term(car(p)) == '-')
 			print_str("-");
@@ -17316,7 +17208,7 @@ print_factor(struct atom *p)
 		print_tensor(p);
 		return;
 	}
-	if (isadd(p) || car(p) == symbol(MULTIPLY)) {
+	if (car(p) == symbol(ADD) || car(p) == symbol(MULTIPLY)) {
 		print_str("(");
 		print_expr(p);
 		print_str(")");
@@ -17349,7 +17241,7 @@ print_factor(struct atom *p)
 				print_expr(cadr(p));
 			return;
 		}
-		if (isadd(cadr(p)) || caadr(p) == symbol(MULTIPLY) || caadr(p) == symbol(POWER) || isnegativenumber(cadr(p))) {
+		if (caadr(p) == symbol(ADD) || caadr(p) == symbol(MULTIPLY) || caadr(p) == symbol(POWER) || isnegativenumber(cadr(p))) {
 			print_str("(");
 			print_expr(cadr(p));
 			print_str(")");
