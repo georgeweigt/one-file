@@ -963,7 +963,9 @@ void trace_input(char *s);
 void trace_error(void);
 void eval_run(void);
 void run_file(char *filename);
-char * scan(char *s, int mode);
+char * scan(char *s);
+char * scan1(char *s);
+char * scan_nib(char *s);
 void scan_stmt(void);
 void scan_comparison(void);
 void scan_expression(void);
@@ -10570,11 +10572,11 @@ integral_of_form(void)
 	for (;;) {
 		if (*s == NULL)
 			stop("integral: could not find a solution");
-		scan(*s++, 1); // integrand
+		scan1(*s++); // integrand
 		I = pop();
-		scan(*s++, 1); // answer
+		scan1(*s++); // answer
 		A = pop();
-		scan(*s++, 1); // condition
+		scan1(*s++); // condition
 		C = pop();
 		if (find_integral(h))
 			break;
@@ -18200,7 +18202,7 @@ run(char *s)
 		return;
 	init(0);
 	for (;;) {
-		s = scan(s, 0);
+		s = scan(s);
 		if (s == NULL)
 			break; // end of input
 		trace_input(s);
@@ -18284,7 +18286,7 @@ init(int level)
 	imaginaryunit = pop();
 	n = sizeof init_script / sizeof (char *);
 	for (i = 0; i < n; i++) {
-		scan(init_script[i], 0);
+		scan(init_script[i]);
 		eval();
 		pop();
 	}
@@ -18399,7 +18401,7 @@ run_file(char *filename)
 	trace_ptr = s;
 	trace_ptr0 = s;
 	while (1) {
-		s = scan(s, 0);
+		s = scan(s);
 		if (s == NULL)
 			break; // end of input
 		trace_input(s);
@@ -18445,10 +18447,23 @@ char *token_str;
 char *token_buf;
 
 char *
-scan(char *s, int mode)
+scan(char *s)
+{
+	scan_mode = 0;
+	return scan_nib(s);
+}
+
+char *
+scan1(char *s)
+{
+	scan_mode = 1; // mode for table of integrals
+	return scan_nib(s);
+}
+
+char *
+scan_nib(char *s)
 {
 	scan_str = s;
-	scan_mode = mode;
 	scan_level = 0;
 	get_token_skip_newlines();
 	if (token == T_END)
