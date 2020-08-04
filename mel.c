@@ -2,7 +2,9 @@
 
 This program runs Mel Kaye's blackjack program by simulating an LGP-30.
 
-Mel's program file bkjck.tx.txt needs to be in the current directory.
+Mel's program file bkjck.tx needs to be in the current directory.
+
+ftp://ftp.informatik.uni-stuttgart.de/pub/cm/lgp30/papertapes/Games/bkjck.tx
 
 The first column of output is your hand, second column is dealer's hand.
 
@@ -574,10 +576,10 @@ load_program(void)
 	int fd, n;
 	char *buf, *s;
 
-	fd = open("bkjck.tx.txt", O_RDONLY, 0);
+	fd = open("bkjck.tx", O_RDONLY, 0);
 
 	if (fd == -1) {
-		printf("cannot open bkjck.tx.txt\n");
+		printf("cannot open bkjck.tx\n");
 		exit(1);
 	}
 
