@@ -72,7 +72,7 @@ char op[16] = {
 
 void run_program(int track);
 void print_char(int c);
-int64_t mul(uint32_t x, uint32_t y);
+uint64_t mul(uint32_t x, uint32_t y);
 void load_program(void);
 char *load_track(char *s);
 char *load_word(char *s, uint32_t *p);
@@ -177,10 +177,10 @@ run_program(int track)
 	}
 }
 
-int64_t
+uint64_t
 mul(uint32_t x, uint32_t y)
 {
-	return (int64_t) x * (int64_t) y;
+	return (uint64_t) x * (uint64_t) y;
 }
 
 void
