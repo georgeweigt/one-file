@@ -6,7 +6,7 @@ Mel's program file bkjck.tx needs to be in the current directory.
 
 ftp://ftp.informatik.uni-stuttgart.de/pub/cm/lgp30/papertapes/Games/bkjck.tx
 
-The first column of output is your hand, second column is dealer's hand.
+The first column of output is player's hand, second column is dealer's hand.
 
 Press 'y' for a card, 'n' to hold.
 
