@@ -542,7 +542,8 @@ load_program(void)
 
 	buf = malloc(n + 1);
 
-	read(fd, buf, n);
+	if (read(fd, buf, n) != n)
+		exit(1);
 
 	close(fd);
 
