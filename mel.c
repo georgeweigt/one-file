@@ -89,11 +89,9 @@ main(int argc, char **argv)
 void
 run_program(int track)
 {
-	int addr, counter, i, n, order, wait;
-	char buf[96];
+	int addr, counter, order;
 	uint32_t acc, w;
-
-	int p = 0;
+	char buf[8];
 
 	counter = 64 * track;
 
