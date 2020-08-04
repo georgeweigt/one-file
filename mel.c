@@ -628,6 +628,9 @@ load_track(char *s)
 
 	// dump_track(n);
 
+	while (*s == '\n' || *s == ' ')
+		s++;
+
 	return s;
 }
 
@@ -636,6 +639,10 @@ load_word(char *s, uint32_t *p)
 {
 	int c;
 	uint32_t w = 0;
+
+	while (*s == '\n' || *s == ' ')
+		s++;
+
 	for (;;) {
 		c = *s++;
 		if (c == '\'')
@@ -675,9 +682,9 @@ load_word(char *s, uint32_t *p)
 			exit(1);
 		}
 	}
+
 	*p = w;
-	while (*s == '\n' || *s == ' ')
-		s++;
+
 	return s;
 }
 
