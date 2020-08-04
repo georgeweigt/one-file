@@ -552,6 +552,8 @@ load_program(void)
 
 	while (*s)
 		s = load_track(s);
+
+	free(buf);
 }
 
 char *
