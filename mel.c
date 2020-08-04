@@ -601,10 +601,14 @@ load_word(char *s, uint32_t *p)
 		s++;
 
 	for (;;) {
+
 		c = *s++;
+
 		if (c == '\'')
 			break;
+
 		w <<= 4;
+
 		switch (c) {
 		case 'l': // l, not 1
 			w |= 1;
@@ -635,7 +639,6 @@ load_word(char *s, uint32_t *p)
 			w |= 15;
 			break;
 		default:
-			printf("char? %c\n", c);
 			exit(1);
 		}
 	}
