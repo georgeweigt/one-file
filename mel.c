@@ -6,7 +6,7 @@ Mel's program file bkjck.txt needs to be in the current directory.
 
 The first column of output is player's hand, second column is dealer's hand.
 
-Press 'y' for a card, 'n' to hold.
+Enter 'y' for a card, 'n' to hold.
 
 % gcc mel.c
 % ./a.out
