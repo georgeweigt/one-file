@@ -72,8 +72,7 @@ char op[16] = {
 
 void run_program(int track);
 void print_char(int c);
-uint64_t mul(uint32_t x, uint32_t y);
-uint32_t sdiv(uint32_t x, uint32_t y); // untested
+int64_t mul(uint32_t x, uint32_t y);
 void load_program(void);
 char *load_track(char *s);
 char *load_word(char *s, uint32_t *p);
@@ -102,6 +101,7 @@ run_program(int track)
 		addr = w >> 2 & 0xfff;
 
 		// printf("%02d%02d %08x: %c %02d%02d\n", counter >> 6, counter & 0x3f, w, op[order], addr >> 6, addr & 0x3f);
+
 		counter = (counter + 1) & 0xfff;
 
 		switch (order) {
@@ -129,16 +129,15 @@ run_program(int track)
 				acc = 0;
 			break;
 
-		case 5: // d divide
-			acc = sdiv(acc, mem[addr]);
+		case 5: // d divide (mel's program does not use division)
 			break;
 
 		case 6: // n multiply
-			acc = (uint32_t) mul(acc, mem[addr]) << 1;
+			acc = (uint32_t) mul(acc, mem[addr]);
 			break;
 
 		case 7: // m multiply
-			acc = (uint32_t) (mul(acc, mem[addr]) >> 30);
+			acc = (uint32_t) (mul(acc, mem[addr]) >> 31);
 			break;
 
 		case 8: // p print
@@ -178,52 +177,10 @@ run_program(int track)
 	}
 }
 
-uint64_t
+int64_t
 mul(uint32_t x, uint32_t y)
 {
-	uint32_t sign;
-	uint64_t z;
-
-	sign = (x ^ y) & 0x80000000;
-
-	if (x & 0x80000000)
-		x = x ^ 0xffffffff;
-
-	if (y & 0x80000000)
-		y = y ^ 0xffffffff;
-
-	y = y >> 1;
-
-	z = (uint64_t) x * (uint64_t) y;
-
-	if (sign)
-		z = ~z;
-
-	return z;
-}
-
-// mel's blackjack program does not use division
-
-uint32_t
-sdiv(uint32_t x, uint32_t y)
-{
-	uint32_t sign;
-	uint64_t z;
-
-	sign = (x ^ y) & 0x80000000;
-
-	if (x & 0x80000000)
-		x = x ^ 0xfffffffe;
-
-	if (y & 0x80000000)
-		y = y ^ 0xfffffffe;
-
-	z = ((uint64_t) x << 31) / y;
-
-	if (sign)
-		z = ~z;
-
-	return (uint32_t) (z >> 32);
+	return (int64_t) x * (int64_t) y;
 }
 
 void
