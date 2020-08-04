@@ -576,10 +576,10 @@ load_program(void)
 	int fd, n;
 	char *buf, *s;
 
-	fd = open("bkjck.tx", O_RDONLY, 0);
+	fd = open("bkjck.txt", O_RDONLY, 0);
 
 	if (fd == -1) {
-		printf("cannot open bkjck.tx\n");
+		printf("cannot open bkjck.txt\n");
 		exit(1);
 	}
 
