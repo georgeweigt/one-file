@@ -75,6 +75,7 @@ void load_program(void);
 char *load_track(char *s);
 char *load_word(char *s, uint32_t *p);
 void dump_track(int n);
+void stop(int line);
 
 int
 main(int argc, char **argv)
@@ -542,8 +543,11 @@ load_program(void)
 
 	buf = malloc(n + 1);
 
+	if (buf == NULL)
+		stop(__LINE__);
+
 	if (read(fd, buf, n) != n)
-		exit(1);
+		stop(__LINE__);
 
 	close(fd);
 
@@ -567,7 +571,7 @@ load_track(char *s)
 		s++;
 
 	if (*s++ != 'v')
-		exit(1);
+		stop(__LINE__);
 
 	s = load_word(s, &w);
 
@@ -640,7 +644,7 @@ load_word(char *s, uint32_t *p)
 			w |= 15;
 			break;
 		default:
-			exit(1);
+			stop(__LINE__);
 		}
 	}
 
@@ -662,4 +666,11 @@ dump_track(int n)
 		s = w >> 2 & 0x3f;
 		printf("%02d%02d %08x: %c %02d%02d\n", k >> 6, k & 0x3f, w, op[o], t, s);
 	}
+}
+
+void
+stop(line)
+{
+	printf("see mel.c line number %d\n", line);
+	exit(1);
 }
